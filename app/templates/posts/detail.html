@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="mb-2">
+        <a href="/boards/{{ post.board.id }}" style="color: #3498db; text-decoration: none;">
+            ← {{ post.board.name }}
+        </a>
+    </div>
+    
+    <h2>
+        {{ post.title }}
+        <span class="badge badge-{{ post.status.value }}">
+            {% if post.status.value == 'draft' %}초안
+            {% elif post.status.value == 'published' %}공개
+            {% elif post.status.value == 'hidden' %}비공개
+            {% endif %}
+        </span>
+    </h2>
+    
+    <div class="post-meta mb-3" style="padding: 1rem 0; border-bottom: 1px solid #eee;">
+        작성자: <strong>{{ post.author.username }}</strong> |
+        작성일: {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
+        {% if post.updated_at != post.created_at %}
+            | 수정일: {{ post.updated_at.strftime('%Y-%m-%d %H:%M') }}
+        {% endif %}
+    </div>
+    
+    <div style="min-height: 200px; padding: 1.5rem; background-color: #f9f9f9; border-radius: 5px; white-space: pre-wrap;">
+{{ post.content or '내용이 없습니다.' }}
+    </div>
+    
+    {% if user and user.id == post.author_id %}
+        <div class="mt-3 flex flex-gap">
+            <a href="/posts/{{ post.id }}/edit" class="btn btn-primary">수정</a>
+            
+            {% if post.status.value == 'draft' or post.status.value == 'hidden' %}
+                <form action="/posts/{{ post.id }}/publish" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-success">공개하기</button>
+                </form>
+            {% endif %}
+            
+            {% if post.status.value == 'published' %}
+                <form action="/posts/{{ post.id }}/hide" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-secondary">비공개로 변경</button>
+                </form>
+            {% endif %}
+            
+            <form action="/posts/{{ post.id }}/delete" method="post" style="display: inline;"
+                  onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                <button type="submit" class="btn btn-danger">삭제</button>
+            </form>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
