@@ -75,18 +75,6 @@
         .btn-logout:hover {
             background-color: rgba(255,255,255,0.1);
         }
-            background: none;
-            border: 1px solid white;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-
-        .btn-logout:hover {
-            background-color: rgba(255,255,255,0.1);
-        }
 
         /* 메인 콘텐츠 */
         main {
@@ -209,6 +197,12 @@
             border: 1px solid #cfc;
         }
 
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
         /* 게시글 목록 */
         .post-list {
             list-style: none;
@@ -305,7 +299,7 @@
                     <a href="/my-posts">내 글</a>
                     <span>{{ user.username }}님</span>
                     <form action="/logout" method="post" style="display: inline;">
-                        <button type="submit" class="btn-logout">로그아웃</button>
+                        <button type="submit" class="btn-logout" aria-label="로그아웃">로그아웃</button>
                     </form>
                 {% else %}
                     <a href="/login">로그인</a>
@@ -315,6 +309,13 @@
     </nav>
 
     <main class="container">
+        {# Flash message 표시 영역 (#16: 공통 에러/알림 전략) #}
+        {% if flash %}
+            <div class="alert alert-{{ flash.category }}" role="alert" aria-live="polite">
+                {{ flash.message }}
+            </div>
+        {% endif %}
+
         {% block content %}{% endblock %}
     </main>
 
