@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from app.database import engine, Base
-from app.routers import board_router, post_router
+from app.routers import board_router, post_router, view_router
 from app.auth import router as auth_router
 from app.config import SECRET_KEY, SESSION_MAX_AGE
 import app.models
@@ -13,7 +13,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="FastAPI 게시판 서비스",
     description="인증/인가 기반 게시판 웹 서비스",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 # 세션 미들웨어 추가 (인증에 필요)
@@ -27,16 +27,17 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(board_router.router)
 app.include_router(post_router.router)
+app.include_router(view_router.router)  # 화면 라우터
 
 
-@app.get("/")
+@app.get("/api")
 async def root():
-    """홈페이지 API"""
+    """API 정보"""
     return {
         "message": "Hello, FastAPI!",
         "service": "게시판 서비스",
         "docs": "/docs",
-        "version": "0.2.0"
+        "version": "0.3.0"
     }
 
 
