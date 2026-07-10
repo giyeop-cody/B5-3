@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}게시글 수정{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+    <h2 class="mb-3">✏️ 게시글 수정</h2>
+    
+    {% if error %}
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+    {% endif %}
+    
+    <form action="/posts/{{ post.id }}/edit" method="post">
+        <div class="form-group">
+            <label for="title">제목</label>
+            <input type="text" id="title" name="title" required
+                   value="{{ post.title }}" maxlength="200">
+        </div>
+        
+        <div class="form-group">
+            <label for="content">내용</label>
+            <textarea id="content" name="content">{{ post.content or '' }}</textarea>
+        </div>
+        
+        <div class="flex flex-gap">
+            <button type="submit" class="btn btn-primary">수정 완료</button>
+            <a href="/posts/{{ post.id }}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

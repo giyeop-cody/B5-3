@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}게시판 목록{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">게시판 목록</h2>
+
+{% for board in boards %}
+    <div class="card">
+        <h3><a href="/boards/{{ board.id }}" style="color: #2c3e50; text-decoration: none;">{{ board.name }}</a></h3>
+        <p style="color: #7f8c8d;">{{ board.description or '설명이 없습니다.' }}</p>
+    </div>
+{% else %}
+    <div class="card text-center">
+        <p>등록된 게시판이 없습니다.</p>
+    </div>
+{% endfor %}
+{% endblock %}

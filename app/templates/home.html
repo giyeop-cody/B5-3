@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}홈 - 게시판 서비스{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>환영합니다!</h2>
+    <p class="mb-3">FastAPI로 만든 게시판 서비스입니다.</p>
+    
+    {% if user %}
+        <p class="mb-3">안녕하세요, <strong>{{ user.username }}</strong>님!</p>
+        <div class="flex flex-gap">
+            <a href="/boards" class="btn btn-primary">게시판 보기</a>
+            <a href="/posts/new" class="btn btn-success">새 글 작성</a>
+        </div>
+    {% else %}
+        <p class="mb-3">로그인하면 게시글을 작성하고 관리할 수 있습니다.</p>
+        <a href="/login" class="btn btn-primary">로그인</a>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>주요 기능</h2>
+    <ul style="margin-top: 1rem; margin-left: 2rem;">
+        <li>📋 여러 게시판 관리</li>
+        <li>✍️ 게시글 작성/수정/삭제</li>
+        <li>🔒 로그인 기반 접근 제어</li>
+        <li>🔄 게시글 상태 관리 (초안/공개/비공개)</li>
+        <li>🔍 게시글 검색 및 필터링</li>
+    </ul>
+</div>
+{% endblock %}
