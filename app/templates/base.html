@@ -296,6 +296,11 @@
             <div class="nav-links">
                 <a href="/boards">게시판</a>
                 {% if user %}
+                    {# 역할(Role) 기반 확장 시 여기에 분기 추가:
+                       {% if user.role == 'admin' %}
+                           <a href="/admin">관리자</a>
+                       {% endif %}
+                    #}
                     <a href="/my-posts">내 글</a>
                     <span>{{ user.username }}님</span>
                     <form action="/logout" method="post" style="display: inline;">

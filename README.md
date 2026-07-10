@@ -49,7 +49,16 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. 데이터베이스 초기화
+### 4. 환경변수 설정 (운영)
+
+```bash
+cp .env.example .env
+# .env 파일을 편집하여 실제 값으로 변경
+```
+
+> 📄 `.env.example` 파일에 모든 환경변수 항목이 정리되어 있습니다.
+
+### 5. 데이터베이스 초기화
 
 ```bash
 python -m app.init_db
@@ -110,6 +119,7 @@ uvicorn app.main:app --reload --port 8000
 - 세션 기반 로그인/로그아웃
 - 보호된 경로 접근 제어
 - 인증 상태에 따른 UI 변화
+- 로그인 상태 표시: 네비게이션에 `OOO님` 표시 (향후 만료 예정 알림, 역할 표시 확장 가능)
 
 ### 게시판
 - 여러 게시판 관리 (자유게시판, 질문게시판 등)
@@ -165,13 +175,22 @@ logout_user(request)
   - 서버 재시작 시 SECRET_KEY 변경으로 모든 세션 무효화
 ```
 
-### 비인증 접근 시 메시지 표준
+### 비인증 접근 시 메시지 표준 (#2)
 
-| 접근 유형 | 응답 | 메시지 |
-|-----------|------|--------|
-| 화면 (GET) | 302 Redirect | `/login` 페이지로 이동 |
-| API (GET/POST) | 401 JSON | `{"detail": "로그인이 필요합니다"}` |
-| 권한 부족 | 403 JSON | `{"detail": "자신의 게시글만 수정할 수 있습니다"}` |
+| 접근 유형 | 응답 코드 | 메시지 형식 | 실제 값 |
+|-----------|----------|------------|---------|
+| 화면 (GET) | 302 Redirect | `RedirectResponse` + flash | `/login?next={원래URL}` + flash category: "error" |
+| API (GET/POST) | 401 JSON | `{"detail": "..."}` | `{"detail": "로그인이 필요합니다"}` |
+| 권한 부족 (화면) | 302 Redirect | flash category: "error" | `"자신의 게시글만 수정할 수 있습니다"` |
+| 권한 부족 (API) | 403 JSON | `{"detail": "..."}` | `{"detail": "자신의 게시글만 수정할 수 있습니다"}` |
+
+### 직접 URL 보호 시 API vs 화면 동작 차이 (#3)
+
+| 보호 경로 직접 접근 | 화면 (View) | API |
+|---------------------|------------|-----|
+| 미인증 사용자 | `302 → /login?next={URL}` | `401 {"detail": "로그인이 필요합니다"}` |
+| 권한 없는 사용자 | `302 → /posts/{id}` + flash error | `403 {"detail": "자신의 게시글만..."}` |
+| 존재하지 않는 리소스 | `302 → /boards` + flash error | `404 {"detail": "게시글을 찾을 수 없습니다"}` |
 
 ### 요청 차단 정책: 미들웨어 vs Depends
 
@@ -251,10 +270,13 @@ User (1) ──────< (N) Post (N) >────── (1) Board
 | Board → Post | 1:N | cascade 없음 | 게시판 삭제 → FK 오류 | 게시글 보호 |
 | Post → Board | N:1 | - (자식 측) | 영향 없음 | FK로 참조만 |
 
-**Board 삭제 시나리오:**
-- 게시판 삭제 전, 해당 게시판의 게시글을 다른 게시판으로 이동하거나 수동 삭제
-- 자동 삭제를 원하면 `cascade="all, delete-orphan"` 추가 가능
-- 현재 정책: 게시판 삭제 시 FK 제약으로 인해 게시글이 있으면 삭제 불가 (안전 장치)
+**Board 삭제 시 권장 절차 (#11):**
+1. 게시판에 속한 게시글이 있는지 확인 (`board.posts` 확인)
+2. 게시글이 있으면:
+   - **옵션 A**: 다른 게시판으로 이동 (`UPDATE posts SET board_id = <새ID> WHERE board_id = <삭제ID>`)
+   - **옵션 B**: 수동으로 게시글 모두 삭제 후 게시판 삭제
+3. 게시글이 없으면: 게시판 바로 삭제 가능
+4. 현재 정책: FK 제약으로 게시글이 있으면 게시판 삭제 불가 → `IntegrityError` 발생 → 사용자에게 "게시글이 존재하는 게시판은 삭제할 수 없습니다" flash 표시
 
 ### ⚠️ 양방향 관계 주의사항 (순환참조 및 직렬화)
 
@@ -321,6 +343,33 @@ class PostResponse(BaseModel):
 - `from_attributes=True`는 SQLAlchemy 객체를 dict처럼 접근
 - 관계 객체 전체를 응답에 포함하면 JSON 직렬화 시 순환참조 발생
 - FK ID만 포함하거나, 별도 응답 모델로 중첩 깊이 제한
+
+**관계 필드 제외 방법 (#17):**
+```python
+# 방법 1: 응답 모델에서 관계 필드를 아예 선언하지 않음 (현재 방식)
+class PostResponse(BaseModel):
+    id: int
+    title: str
+    author_id: int   # author 객체가 아닌 ID만
+    board_id: int    # board 객체가 아닌 ID만
+    # author: User  ← 선언하지 않으면 자동 제외
+
+# 방법 2: model_config에서 exclude 사용
+class PostResponse(BaseModel):
+    id: int
+    title: str
+    author: Optional[UserResponse] = None  # 필요시만 포함
+
+    model_config = {"from_attributes": True}
+
+# 응답 시 exclude
+PostResponse.model_validate(post, from_attributes=True).model_dump(exclude={"author"})
+```
+
+**로딩 전략 권장 사항 (#9):**
+- 기본 `lazy="select"` (지연 로딩): 현재 프로젝트에 적합, 접근 시 쿼리 실행
+- N+1 쿼리 발생 시 `joinedload()` 사용: `db.query(Post).options(joinedload(Post.author))`
+- 대량 조회 시 `selectinload()` 권장: IN 쿼리 하나로 관계 데이터 일괄 로딩
 
 ---
 
@@ -393,11 +442,11 @@ Repository (DB CRUD)
 Database (SQLAlchemy Session)
 ```
 
-| 계층 | 공개 메서드 | 발생 예외 | 처리 주체 |
-|------|------------|-----------|----------|
-| **Repository** | `get_by_id()`, `create()`, `update()`, `delete()`, `get_all()`, `search()` | 없음 (None 반환) | Service |
-| **Service** | `get_post()`, `create_post()`, `update_post()`, `delete_post()`, `publish_post()`, `hide_post()` | `ValueError` (리소스 없음, 상태 오류), `PermissionError` (권한 부족) | Router |
-| **Router** | HTTP 엔드포인트 | `HTTPException(400/401/403/404)` | FastAPI |
+| 계층 | 공개 메서드 | 발생 예외 | 처리 주체 | 트랜잭션 책임 |
+|------|------------|-----------|----------|-------------|
+| **Repository** | `get_by_id()`, `create()`, `update()`, `delete()`, `get_all()`, `search()` | 없음 (None 반환) | Service | 단일 CRUD: 내부 `commit()` |
+| **Service** | `get_post()`, `create_post()`, `update_post()`, `delete_post()`, `publish_post()`, `hide_post()` | `ValueError`, `PermissionError` | Router | 단일 호출 위임, 복합 작업 시 직접 관리 |
+| **Router** | HTTP 엔드포인트 | `HTTPException(400/401/403/404)` | FastAPI | 관여 안 함 |
 
 ```python
 # Router: Service 예외를 HTTP 응답으로 변환
@@ -587,6 +636,32 @@ $ curl -b cookies.txt -X POST http://localhost:8000/api/auth/logout
 {"id": 1, "title": "글", "author": {"id": 1, "username": "test", "posts": [{"id": 1, "author": {"id": 1, "posts": [...]}}]}}
 ```
 
+### 엔드투엔드 통합 테스트 순서 (#16)
+
+```bash
+# 전체 흐름: 로그인 → 게시글 작성 → 상태 변경 → 조회 → 로그아웃
+
+# 1. 로그인
+curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"test1234"}'
+# → {"message":"로그인 성공","username":"testuser"}
+
+# 2. 게시글 작성 + 상태 변경
+curl -b cookies.txt -X POST http://localhost:8000/api/posts/ \
+  -H "Content-Type: application/json" \
+  -d '{"title":"통합테스트","content":"내용","board_id":1}'
+# → {"id":1, "status":"draft", ...}
+curl -b cookies.txt -X POST http://localhost:8000/api/posts/1/publish
+# → {"status":"published", ...}
+
+# 3. 결과 확인 + 로그아웃
+curl -b cookies.txt http://localhost:8000/api/posts/1
+# → {"status":"published", ...}
+curl -b cookies.txt -X POST http://localhost:8000/api/auth/logout
+# → {"message":"로그아웃 완료"}
+```
+
 ### 게시글 상세 조회 (연관관계 포함)
 
 ```json
@@ -676,6 +751,26 @@ $ curl -b cookies.txt -X POST http://localhost:8000/api/auth/logout
 | `POST /api/posts/{id}/publish` | DRAFT/HIDDEN → PUBLISHED | 작성자만 |
 | `POST /api/posts/{id}/hide` | DRAFT/PUBLISHED → HIDDEN | 작성자만 |
 
+### 상태 전이 후 UI 변화 (#6)
+
+상태 변경 시 버튼/배지가 즉시 업데이트됩니다:
+
+| 상태 | 배지 | 표시 버튼 | flash 메시지 |
+|------|------|----------|-------------|
+| `draft` | `🔘 초안` (회색) | [공개하기] | "게시글이 공개되었습니다." |
+| `published` | `🟢 공개` (초록) | [비공개로 변경] | "게시글이 비공개로 변경되었습니다." |
+| `hidden` | `🟡 비공개` (노랑) | [공개하기] | "게시글이 공개되었습니다." |
+
+```html
+<!-- posts/detail.html: 상태별 조건부 버튼 렌더링 -->
+{% if post.status.value == 'draft' or post.status.value == 'hidden' %}
+    <button type="submit" class="btn btn-success">공개하기</button>
+{% endif %}
+{% if post.status.value == 'published' %}
+    <button type="submit" class="btn btn-secondary">비공개로 변경</button>
+{% endif %}
+```
+
 ### 복합 작업 트랜잭션 패턴 (#10, #15)
 
 여러 Repository를 호출하는 복합 작업의 권장 패턴:
@@ -740,6 +835,7 @@ class OrderService:
 - 미들웨어: 모든 요청에 공통으로 적용할 것 (세션, CORS, 로깅)
 - Depends: 엔드포인트별로 다르게 적용할 것 (인증, 권한, 유효성 검증)
 - 충돌 방지: 미들웨어에서 인증을 강제하지 말 것 (Depends와 중복)
+- 예외 사례: IP 차단, Rate Limiting은 미들웨어로 적용 (모든 요청에 공통 차단 필요)
 
 ---
 
@@ -850,16 +946,19 @@ async def get_current_user(
 | **P2 (선택)** | XSS 방어 | localStorage 저장 시 주의 |
 | **P3 (최적화)** | 토큰 크기 최소화 | 네트워크 효율 |
 
-### JWT 전환 체크리스트
+### JWT 전환 체크리스트 (권장 값 포함) (#18)
 
 - [x] 전환 시 변경 지점 문서화
 - [x] JWT 버전 `get_current_user` 코드 예시
 - [x] 구현 우선순위 정리
-- [ ] 토큰 만료 시간 설정 (P0)
-- [ ] Refresh Token 구현 (P1)
-- [ ] 토큰 무효화 전략 (P1)
-- [ ] CSRF 보호 (P2)
-- [ ] XSS 방어 (P2)
+- [ ] Access Token 만료: **15분~30분** (짧을수록 안전, `ACCESS_TOKEN_EXPIRE_MINUTES=30`)
+- [ ] Refresh Token 만료: **7일~14일** (`REFRESH_TOKEN_EXPIRE_DAYS=7`)
+- [ ] HTTPS 필수: 프로덕션에서는 `Secure` 쿠키 + `HSTS` 헤더
+- [ ] Refresh Token 회전: 사용 시 새 토큰 발급 + 이전 토큰 무효화
+- [ ] 토큰 무효화: Redis 블랙리스트 또는 DB revocation 테이블
+- [ ] CSRF 보호: `SameSite=Strict` 쿠키 또는 CSRF 토큰 (`csrfProtect`)
+- [ ] XSS 방어: HttpOnly 쿠키에 JWT 저장 (`document.cookie` 접근 불가)
+- [ ] 알고리즘 고정: `HS256` 또는 `RS256` 명시 (algorithm confusion 방지)
 
 ---
 
