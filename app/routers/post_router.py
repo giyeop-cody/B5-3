@@ -1,0 +1,144 @@
+"""게시글 API 라우터"""
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.repositories.post_repository import PostRepository
+from app.services.post_service import PostService
+from app.schemas import PostCreate, PostUpdate, PostResponse
+from typing import List, Optional
+
+router = APIRouter(prefix="/api/posts", tags=["posts"])
+
+
+def get_post_service(db: Session = Depends(get_db)) -> PostService:
+    """PostService 의존성 주입"""
+    post_repo = PostRepository(db)
+    return PostService(post_repo)
+
+
+@router.get("/", response_model=List[PostResponse])
+async def list_posts(
+    board_id: Optional[int] = Query(None, description="게시판 ID로 필터링"),
+    author_id: Optional[int] = Query(None, description="작성자 ID로 필터링"),
+    q: Optional[str] = Query(None, description="검색어"),
+    skip: int = Query(0, ge=0, description="건너뛸 개수"),
+    limit: int = Query(100, ge=1, le=1000, description="가져올 개수"),
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 목록 조회 (필터링/검색 지원)"""
+    try:
+        if q:
+            return post_service.search_posts(q)
+        elif board_id:
+            return post_service.get_posts_by_board(board_id)
+        elif author_id:
+            return post_service.get_posts_by_author(author_id)
+        else:
+            return post_service.get_all_posts(skip=skip, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{post_id}", response_model=PostResponse)
+async def get_post(
+    post_id: int,
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 상세 조회"""
+    try:
+        return post_service.get_post(post_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+async def create_post(
+    post_data: PostCreate,
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 생성 (인증 필요 - Step 4에서 적용)"""
+    try:
+        # TODO: 인증 구현 후 current_user.id로 변경
+        return post_service.create_post(
+            title=post_data.title,
+            content=post_data.content,
+            author_id=1,  # 임시: testuser
+            board_id=post_data.board_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/{post_id}", response_model=PostResponse)
+async def update_post(
+    post_id: int,
+    post_data: PostUpdate,
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 수정 (인증 필요 - Step 4에서 적용)"""
+    try:
+        # TODO: 인증 구현 후 current_user.id로 변경
+        return post_service.update_post(
+            post_id=post_id,
+            user_id=1,  # 임시: testuser
+            title=post_data.title,
+            content=post_data.content
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_post(
+    post_id: int,
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 삭제 (인증 필요 - Step 4에서 적용)"""
+    try:
+        # TODO: 인증 구현 후 current_user.id로 변경
+        post_service.delete_post(
+            post_id=post_id,
+            user_id=1  # 임시: testuser
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.post("/{post_id}/publish", response_model=PostResponse)
+async def publish_post(
+    post_id: int,
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 공개 (상태 변경: DRAFT/HIDDEN → PUBLISHED)"""
+    try:
+        # TODO: 인증 구현 후 current_user.id로 변경
+        return post_service.publish_post(
+            post_id=post_id,
+            user_id=1  # 임시: testuser
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.post("/{post_id}/hide", response_model=PostResponse)
+async def hide_post(
+    post_id: int,
+    post_service: PostService = Depends(get_post_service)
+):
+    """게시글 비공개 (상태 변경: DRAFT/PUBLISHED → HIDDEN)"""
+    try:
+        # TODO: 인증 구현 후 current_user.id로 변경
+        return post_service.hide_post(
+            post_id=post_id,
+            user_id=1  # 임시: testuser
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
