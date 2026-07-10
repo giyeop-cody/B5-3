@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}내 글 - 게시판 서비스{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">📝 내가 작성한 글</h2>
+
+{% if posts %}
+    <div class="card">
+        <ul class="post-list">
+            {% for post in posts %}
+                <li class="post-item">
+                    <h3>
+                        <a href="/posts/{{ post.id }}">{{ post.title }}</a>
+                        <span class="badge badge-{{ post.status.value }}">
+                            {% if post.status.value == 'draft' %}초안
+                            {% elif post.status.value == 'published' %}공개
+                            {% elif post.status.value == 'hidden' %}비공개
+                            {% endif %}
+                        </span>
+                    </h3>
+                    <div class="post-meta">
+                        게시판: <a href="/boards/{{ post.board.id }}" style="color: #3498db;">{{ post.board.name }}</a> |
+                        {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    
+    <p style="color: #7f8c8d;">총 {{ posts|length }}개의 게시글</p>
+{% else %}
+    <div class="card text-center">
+        <p style="padding: 2rem; color: #7f8c8d;">
+            아직 작성한 글이 없습니다.<br>
+            <a href="/posts/new" class="btn btn-primary mt-2">첫 글 작성하기</a>
+        </p>
+    </div>
+{% endif %}
+{% endblock %}

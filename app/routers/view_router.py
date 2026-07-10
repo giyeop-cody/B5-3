@@ -82,6 +82,24 @@ async def boards_list(request: Request, db: Session = Depends(get_db)):
     )
 
 
+# ===== 내 글 =====
+@router.get("/my-posts")
+async def my_posts(request: Request, db: Session = Depends(get_db)):
+    """내가 작성한 글 목록"""
+    user = get_current_user_from_session(request)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    post_service = PostService(PostRepository(db))
+    posts = post_service.get_posts_by_author(user.id)
+
+    return templates.TemplateResponse(
+        request, "my_posts.html",
+        {"user": user, "posts": posts}
+    )
+
+
 @router.get("/boards/{board_id}")
 async def board_detail(
     request: Request,
