@@ -49,7 +49,16 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. 데이터베이스 초기화
+### 4. 환경변수 설정 (운영)
+
+```bash
+cp .env.example .env
+# .env 파일을 편집하여 실제 값으로 변경
+```
+
+> 📄 `.env.example` 파일에 모든 환경변수 항목이 정리되어 있습니다.
+
+### 5. 데이터베이스 초기화
 
 ```bash
 python -m app.init_db
@@ -110,6 +119,7 @@ uvicorn app.main:app --reload --port 8000
 - 세션 기반 로그인/로그아웃
 - 보호된 경로 접근 제어
 - 인증 상태에 따른 UI 변화
+- 로그인 상태 표시: 네비게이션에 `OOO님` 표시 (향후 만료 예정 알림, 역할 표시 확장 가능)
 
 ### 게시판
 - 여러 게시판 관리 (자유게시판, 질문게시판 등)
@@ -165,13 +175,22 @@ logout_user(request)
   - 서버 재시작 시 SECRET_KEY 변경으로 모든 세션 무효화
 ```
 
-### 비인증 접근 시 메시지 표준
+### 비인증 접근 시 메시지 표준 (#2)
 
-| 접근 유형 | 응답 | 메시지 |
-|-----------|------|--------|
-| 화면 (GET) | 302 Redirect | `/login` 페이지로 이동 |
-| API (GET/POST) | 401 JSON | `{"detail": "로그인이 필요합니다"}` |
-| 권한 부족 | 403 JSON | `{"detail": "자신의 게시글만 수정할 수 있습니다"}` |
+| 접근 유형 | 응답 코드 | 메시지 형식 | 실제 값 |
+|-----------|----------|------------|---------|
+| 화면 (GET) | 302 Redirect | `RedirectResponse` + flash | `/login?next={원래URL}` + flash category: "error" |
+| API (GET/POST) | 401 JSON | `{"detail": "..."}` | `{"detail": "로그인이 필요합니다"}` |
+| 권한 부족 (화면) | 302 Redirect | flash category: "error" | `"자신의 게시글만 수정할 수 있습니다"` |
+| 권한 부족 (API) | 403 JSON | `{"detail": "..."}` | `{"detail": "자신의 게시글만 수정할 수 있습니다"}` |
+
+### 직접 URL 보호 시 API vs 화면 동작 차이 (#3)
+
+| 보호 경로 직접 접근 | 화면 (View) | API |
+|---------------------|------------|-----|
+| 미인증 사용자 | `302 → /login?next={URL}` | `401 {"detail": "로그인이 필요합니다"}` |
+| 권한 없는 사용자 | `302 → /posts/{id}` + flash error | `403 {"detail": "자신의 게시글만..."}` |
+| 존재하지 않는 리소스 | `302 → /boards` + flash error | `404 {"detail": "게시글을 찾을 수 없습니다"}` |
 
 ### 요청 차단 정책: 미들웨어 vs Depends
 
@@ -216,19 +235,48 @@ User (1) ──────< (N) Post (N) >────── (1) Board
                       └─ updated_at
 ```
 
-### 관계 설계 의도 및 삭제 정책
+### 관계 설계 의도 및 삭제 정책 (#9)
 
-| 관계 | 방향 | cascade 정책 | 이유 |
-|------|------|-------------|------|
-| User → Post | 1:N | `cascade="all, delete-orphan"` | 사용자 탈퇴 시 작성한 글도 함께 삭제 |
-| Post → User | N:1 | - (자식 측) | FK로 참조만 함 |
-| Board → Post | 1:N | cascade 없음 | 게시판 삭제 시 게시글은 별도 처리 필요 |
-| Post → Board | N:1 | - (자식 측) | FK로 참조만 함 |
+#### Cascade 정책 다이어그램
 
-**Board 삭제 시나리오:**
-- 게시판 삭제 전, 해당 게시판의 게시글을 다른 게시판으로 이동하거나 수동 삭제
-- 자동 삭제를 원하면 `cascade="all, delete-orphan"` 추가 가능
-- 현재 정책: 게시판 삭제 시 FK 제약으로 인해 게시글이 있으면 삭제 불가 (안전 장치)
+```
+┌──────────────┐                          ┌──────────────┐
+│     User     │                          │    Board     │
+│              │                          │              │
+│ cascade=     │   1 : N                  │ cascade=     │   1 : N
+│ "all,        │────────────────────┐     │ 없음         │────────────────┐
+│ delete-      │                    │     │              │                │
+│ orphan"      │                    │     │              │                │
+└──────────────┘                    │     └──────────────┘                │
+                                    │                                     │
+     사용자 삭제 시                  ↓                                     ↓
+     → 게시글 자동 삭제        ┌──────────────┐                    ┌──────────────┐
+                              │     Post     │                    │     Post     │
+                              │              │                    │              │
+                              │ author_id(FK)│                    │ board_id(FK) │
+                              │ board_id(FK) │                    │ author_id(FK)│
+                              └──────────────┘                    └──────────────┘
+
+삭제 동작:
+  User 삭제 → Post 자동 삭제 ✅   (cascade="all, delete-orphan")
+  Board 삭제 → Post 삭제 불가 ❌  (FK 제약 → 수동 처리 필요)
+  Post 삭제 → User/Board 영향 없음
+```
+
+| 관계 | 방향 | cascade 정책 | 삭제 시 동작 | 이유 |
+|------|------|-------------|-------------|------|
+| User → Post | 1:N | `cascade="all, delete-orphan"` | 사용자 삭제 → 글 자동 삭제 | 탈퇴 시 데이터 정리 |
+| Post → User | N:1 | - (자식 측) | 영향 없음 | FK로 참조만 |
+| Board → Post | 1:N | cascade 없음 | 게시판 삭제 → FK 오류 | 게시글 보호 |
+| Post → Board | N:1 | - (자식 측) | 영향 없음 | FK로 참조만 |
+
+**Board 삭제 시 권장 절차 (#11):**
+1. 게시판에 속한 게시글이 있는지 확인 (`board.posts` 확인)
+2. 게시글이 있으면:
+   - **옵션 A**: 다른 게시판으로 이동 (`UPDATE posts SET board_id = <새ID> WHERE board_id = <삭제ID>`)
+   - **옵션 B**: 수동으로 게시글 모두 삭제 후 게시판 삭제
+3. 게시글이 없으면: 게시판 바로 삭제 가능
+4. 현재 정책: FK 제약으로 게시글이 있으면 게시판 삭제 불가 → `IntegrityError` 발생 → 사용자에게 "게시글이 존재하는 게시판은 삭제할 수 없습니다" flash 표시
 
 ### ⚠️ 양방향 관계 주의사항 (순환참조 및 직렬화)
 
@@ -296,6 +344,33 @@ class PostResponse(BaseModel):
 - 관계 객체 전체를 응답에 포함하면 JSON 직렬화 시 순환참조 발생
 - FK ID만 포함하거나, 별도 응답 모델로 중첩 깊이 제한
 
+**관계 필드 제외 방법 (#17):**
+```python
+# 방법 1: 응답 모델에서 관계 필드를 아예 선언하지 않음 (현재 방식)
+class PostResponse(BaseModel):
+    id: int
+    title: str
+    author_id: int   # author 객체가 아닌 ID만
+    board_id: int    # board 객체가 아닌 ID만
+    # author: User  ← 선언하지 않으면 자동 제외
+
+# 방법 2: model_config에서 exclude 사용
+class PostResponse(BaseModel):
+    id: int
+    title: str
+    author: Optional[UserResponse] = None  # 필요시만 포함
+
+    model_config = {"from_attributes": True}
+
+# 응답 시 exclude
+PostResponse.model_validate(post, from_attributes=True).model_dump(exclude={"author"})
+```
+
+**로딩 전략 권장 사항 (#9):**
+- 기본 `lazy="select"` (지연 로딩): 현재 프로젝트에 적합, 접근 시 쿼리 실행
+- N+1 쿼리 발생 시 `joinedload()` 사용: `db.query(Post).options(joinedload(Post.author))`
+- 대량 조회 시 `selectinload()` 권장: IN 쿼리 하나로 관계 데이터 일괄 로딩
+
 ---
 
 ## 💼 트랜잭션 관리
@@ -352,6 +427,87 @@ def create_post(self, ...):
 ---
 
 ## 🏗️ 프로젝트 구조 및 모듈별 역할
+
+### 계층 간 인터페이스 및 예외 계약 (#8)
+
+각 계층은 명확한 인터페이스와 예외 계약을 가집니다:
+
+```
+Router (HTTP 요청/응답)
+  ↓ Depends
+Service (비즈니스 로직)
+  ↓ 호출
+Repository (DB CRUD)
+  ↓ 호출
+Database (SQLAlchemy Session)
+```
+
+| 계층 | 공개 메서드 | 발생 예외 | 처리 주체 | 트랜잭션 책임 |
+|------|------------|-----------|----------|-------------|
+| **Repository** | `get_by_id()`, `create()`, `update()`, `delete()`, `get_all()`, `search()` | 없음 (None 반환) | Service | 단일 CRUD: 내부 `commit()` |
+| **Service** | `get_post()`, `create_post()`, `update_post()`, `delete_post()`, `publish_post()`, `hide_post()` | `ValueError`, `PermissionError` | Router | 단일 호출 위임, 복합 작업 시 직접 관리 |
+| **Router** | HTTP 엔드포인트 | `HTTPException(400/401/403/404)` | FastAPI | 관여 안 함 |
+
+```python
+# Router: Service 예외를 HTTP 응답으로 변환
+@router.post("/posts/{id}/publish")
+async def publish_post(post_id: int, user = Depends(get_current_user)):
+    try:
+        return post_service.publish_post(post_id, user.id)
+    except ValueError as e:           # Service → ValueError
+        raise HTTPException(400, str(e))  # Router → HTTP 400
+    except PermissionError as e:      # Service → PermissionError
+        raise HTTPException(403, str(e))  # Router → HTTP 403
+```
+
+### 화면 라우터의 예외 처리 전략 (#16)
+
+화면 라우터(view_router.py)는 **flash message** 패턴을 사용합니다:
+
+```python
+# 성공 시: flash 메시지 저장 + 리다이렉트
+set_flash(request, "success", "게시글이 작성되었습니다.")
+return RedirectResponse(url=f"/posts/{post.id}", status_code=302)
+
+# 실패 시: flash 에러 메시지 저장 + 리다이렉트
+except PermissionError:
+    set_flash(request, "error", "자신의 게시글만 삭제할 수 있습니다.")
+    return RedirectResponse(url=f"/posts/{post_id}", status_code=302)
+```
+
+모든 템플릿은 `base.html`에서 flash 메시지를 자동으로 표시합니다:
+```html
+{% if flash %}
+    <div class="alert alert-{{ flash.category }}" role="alert">
+        {{ flash.message }}
+    </div>
+{% endif %}
+```
+
+---
+
+### 권한별 메뉴 확장 가이드 (#4)
+
+현재는 로그인/비로그인만 구분하지만, 역할(Role) 기반 확장이 가능합니다:
+
+```python
+# models/user.py에 role 필드 추가
+class User(Base):
+    role = Column(String, default="user")  # "user", "admin"
+
+# templates/base.html에서 역할별 분기
+{% if user %}
+    {% if user.role == 'admin' %}
+        <a href="/admin">관리자</a>
+    {% endif %}
+    <a href="/my-posts">내 글</a>
+{% endif %}
+```
+
+**확장 시 주의사항:**
+- 역할은 Enum으로 정의 권장 (`UserRole.USER`, `UserRole.ADMIN`)
+- 관리자 전용 라우터는 별도 `admin_router.py`로 분리
+- Depends에서 역할 검증 추가: `get_admin_user()`
 
 ```
 fastapi-auth-service/
@@ -411,6 +567,100 @@ fastapi-auth-service/
 ---
 
 ## 📊 API 응답 예시 (연관관계 데이터)
+
+### curl 기반 전체 흐름 테스트 (#5, #7, #17)
+
+```bash
+# 1. 서버 시작
+uvicorn app.main:app --reload --port 8000
+
+# 2. 로그인 (세션 쿠키 저장)
+$ curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"username": "testuser", "password": "test1234"}'
+# 응답: {"message":"로그인 성공","username":"testuser"}
+
+# 3. 게시판 목록 조회 (공개)
+$ curl -s http://localhost:8000/api/boards/
+# 응답:
+[
+  {"name":"자유게시판","description":"자유롭게 이야기를 나누는 공간입니다.","id":1},
+  {"name":"질문게시판","description":"궁금한 점을 질문하고 답변을 받는 공간입니다.","id":2}
+]
+
+# 4. 게시글 작성 (인증 필수 - 쿠키 사용)
+$ curl -b cookies.txt -X POST http://localhost:8000/api/posts/ \
+    -H "Content-Type: application/json" \
+    -d '{"title": "첫 번째 글", "content": "안녕하세요!", "board_id": 1}'
+# 응답:
+{
+  "title": "첫 번째 글",
+  "content": "안녕하세요!",
+  "id": 1,
+  "status": "draft",
+  "author_id": 1,        ← FK ID만 포함 (author 객체 X → 순환참조 방지 #17)
+  "board_id": 1,         ← FK ID만 포함 (board 객체 X → 순환참조 방지 #17)
+  "created_at": "2026-07-10T13:24:00",
+  "updated_at": "2026-07-10T13:24:00"
+}
+
+# 5. 비인증 접근 시도 → 401
+$ curl -X POST http://localhost:8000/api/posts/ \
+    -H "Content-Type: application/json" \
+    -d '{"title": "테스트", "content": "", "board_id": 1}'
+# 응답: {"detail":"로그인이 필요합니다"}  (HTTP 401)
+
+# 6. 게시글 공개 (상태 변경)
+$ curl -b cookies.txt -X POST http://localhost:8000/api/posts/1/publish
+# 응답: {"title":"첫 번째 글", ..., "status":"published", ...}
+
+# 7. 내 글 목록 조회 (연관관계 활용)
+$ curl -b cookies.txt http://localhost:8000/api/posts/?author_id=1
+# 응답: [{"id":1, "title":"첫 번째 글", "status":"published", "author_id":1, ...}]
+
+# 8. 로그아웃
+$ curl -b cookies.txt -X POST http://localhost:8000/api/auth/logout
+# 응답: {"message":"로그아웃 완료"}
+```
+
+### 순환참조 없음 증명 (#17)
+
+위 API 응답에서 `PostResponse`는 `author_id`(int)와 `board_id`(int)만 포함합니다.  
+`author`(User 객체)나 `board`(Board 객체) 전체를 포함하지 않으므로 JSON 직렬화 시 순환참조가 발생하지 않습니다.
+
+```json
+// ✅ 안전: ID만 포함
+{"id": 1, "title": "글", "author_id": 1, "board_id": 1}
+
+// ❌ 순환참조 발생: 객체 전체 포함 시
+{"id": 1, "title": "글", "author": {"id": 1, "username": "test", "posts": [{"id": 1, "author": {"id": 1, "posts": [...]}}]}}
+```
+
+### 엔드투엔드 통합 테스트 순서 (#16)
+
+```bash
+# 전체 흐름: 로그인 → 게시글 작성 → 상태 변경 → 조회 → 로그아웃
+
+# 1. 로그인
+curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"test1234"}'
+# → {"message":"로그인 성공","username":"testuser"}
+
+# 2. 게시글 작성 + 상태 변경
+curl -b cookies.txt -X POST http://localhost:8000/api/posts/ \
+  -H "Content-Type: application/json" \
+  -d '{"title":"통합테스트","content":"내용","board_id":1}'
+# → {"id":1, "status":"draft", ...}
+curl -b cookies.txt -X POST http://localhost:8000/api/posts/1/publish
+# → {"status":"published", ...}
+
+# 3. 결과 확인 + 로그아웃
+curl -b cookies.txt http://localhost:8000/api/posts/1
+# → {"status":"published", ...}
+curl -b cookies.txt -X POST http://localhost:8000/api/auth/logout
+# → {"message":"로그아웃 완료"}
+```
 
 ### 게시글 상세 조회 (연관관계 포함)
 
@@ -501,6 +751,92 @@ fastapi-auth-service/
 | `POST /api/posts/{id}/publish` | DRAFT/HIDDEN → PUBLISHED | 작성자만 |
 | `POST /api/posts/{id}/hide` | DRAFT/PUBLISHED → HIDDEN | 작성자만 |
 
+### 상태 전이 후 UI 변화 (#6)
+
+상태 변경 시 버튼/배지가 즉시 업데이트됩니다:
+
+| 상태 | 배지 | 표시 버튼 | flash 메시지 |
+|------|------|----------|-------------|
+| `draft` | `🔘 초안` (회색) | [공개하기] | "게시글이 공개되었습니다." |
+| `published` | `🟢 공개` (초록) | [비공개로 변경] | "게시글이 비공개로 변경되었습니다." |
+| `hidden` | `🟡 비공개` (노랑) | [공개하기] | "게시글이 공개되었습니다." |
+
+```html
+<!-- posts/detail.html: 상태별 조건부 버튼 렌더링 -->
+{% if post.status.value == 'draft' or post.status.value == 'hidden' %}
+    <button type="submit" class="btn btn-success">공개하기</button>
+{% endif %}
+{% if post.status.value == 'published' %}
+    <button type="submit" class="btn btn-secondary">비공개로 변경</button>
+{% endif %}
+```
+
+### 복합 작업 트랜잭션 패턴 (#10, #15)
+
+여러 Repository를 호출하는 복합 작업의 권장 패턴:
+
+```python
+# 권장: Service에서 Session을 직접 관리
+from sqlalchemy.orm import Session
+
+class OrderService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.order_repo = OrderRepository(db)
+        self.stock_repo = StockRepository(db)
+
+    def place_order(self, user_id: int, items: list):
+        """복합 작업: 주문 생성 + 재고 감소 (원자적 처리)"""
+        try:
+            # 1. 모든 검증 먼저 수행
+            for item in items:
+                stock = self.stock_repo.get_by_product(item.product_id)
+                if not stock or stock.quantity < item.quantity:
+                    raise ValueError(f"재고 부족: {item.product_id}")
+
+            # 2. 트랜잭션 내에서 모든 DB 조작
+            order = self.order_repo.create(user_id=user_id, items=items)
+            for item in items:
+                self.stock_repo.decrease(item.product_id, item.quantity)
+
+            self.db.commit()  # 한 번에 커밋
+            return order
+
+        except Exception:
+            self.db.rollback()  # 실패 시 전체 롤백
+            raise
+```
+
+**트랜잭션 패턴 요약:**
+
+| 패턴 | 사용 시기 | 방법 |
+|------|----------|------|
+| 단일 Repository | 현재 프로젝트 | 각 repo에서 `commit()` |
+| 다중 Repository | 복합 작업 | Service에서 `db.commit()` / `db.rollback()` |
+| 중첩 트랜잭션 | 부분 실패 허용 | `db.begin_nested()` (savepoint) |
+
+### 미들웨어 + Depends 조합 시 우선순위 (#13)
+
+```
+요청 → SessionMiddleware (세션 쿠키 파싱)
+        → [라우터 매칭]
+        → Depends(get_current_user) (인증 확인)
+        → 엔드포인트 함수 실행
+```
+
+| 시나리오 | 처리 위치 | 이유 |
+|----------|----------|------|
+| 세션 쿠키 파싱 | SessionMiddleware | 모든 요청에서 공통 |
+| 인증 필요 여부 | Depends | 엔드포인트별로 다름 |
+| CORS 처리 | CORSMiddleware | 모든 요청에서 공통 |
+| 로깅 | 커스텀 미들웨어 | 모든 요청에서 공통 |
+
+**권장 조합:**
+- 미들웨어: 모든 요청에 공통으로 적용할 것 (세션, CORS, 로깅)
+- Depends: 엔드포인트별로 다르게 적용할 것 (인증, 권한, 유효성 검증)
+- 충돌 방지: 미들웨어에서 인증을 강제하지 말 것 (Depends와 중복)
+- 예외 사례: IP 차단, Rate Limiting은 미들웨어로 적용 (모든 요청에 공통 차단 필요)
+
 ---
 
 ## 🔧 운영 가이드
@@ -547,7 +883,7 @@ alembic upgrade head
 
 ## 🔐 세션 → JWT 전환 가이드
 
-### 전환 시 변경 지점
+### 전환 시 변경 지점 (#12)
 
 | 파일 | 변경 내용 |
 |------|----------|
@@ -557,17 +893,72 @@ alembic upgrade head
 | `auth/router.py` | 로그인 응답에 `access_token` 포함 |
 | `config.py` | `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` 추가 |
 
-**장점:** `dependencies.py`의 `get_current_user` 인터페이스를 유지하면, 라우터 코드는 변경 불필요
+**장점:** `dependencies.py`의 `get_current_user` 인터페이스를 유지하면, **라우터 코드는 변경 불필요**
 
-### JWT 전환 시 고려사항 체크리스트
+### JWT 버전 의존성 코드 예시 (#12)
 
-- [ ] 토큰 만료 시간 설정 (보통 15분~1시간)
-- [ ] 리프레시 토큰 구현 (만료 후 재인증)
-- [ ] 토큰 무효화 전략 (블랙리스트 또는 짧은 만료시간)
-- [ ] CSRF 보호 (쿠키에 JWT 저장 시 필수)
-- [ ] XSS 방어 (localStorage 저장 시 주의)
-- [ ] 토큰 크기 관리 (페이로드 최소한으로)
-- [ ] HTTPS 필수 (토큰 탈취 방지)
+```python
+# auth/jwt.py (auth/session.py 대체)
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+
+def create_access_token(user_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": str(user_id), "exp": expire}
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+def decode_access_token(token: str) -> int:
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    return int(payload["sub"])
+
+# auth/dependencies.py (세션 버전 → JWT 버전 교체)
+from fastapi import Request, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> User:
+    """인터페이스는 동일! 라우터 코드 변경 불필요"""
+    try:
+        user_id = decode_access_token(credentials.credentials)
+        db = SessionLocal()
+        user = UserRepository(db).get_by_id(user_id)
+        db.close()
+        if not user:
+            raise HTTPException(status_code=401, detail="사용자를 찾을 수 없습니다")
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다")
+```
+
+### JWT 전환 구현 우선순위 (#18)
+
+| 우선순위 | 항목 | 이유 |
+|----------|------|------|
+| **P0 (필수)** | Access Token 만료 설정 | 보안 기본 요건 (15분~1시간 권장) |
+| **P0 (필수)** | HTTPS 적용 | 토큰 탈취 방지 |
+| **P1 (권장)** | Refresh Token | UX 개선 (재로그인 없이 토큰 갱신) |
+| **P1 (권장)** | 토큰 무효화 (블랙리스트) | 로그아웃/비밀번호 변경 시 즉시 무효화 |
+| **P2 (선택)** | CSRF 보호 | 쿠키에 JWT 저장 시 필수 |
+| **P2 (선택)** | XSS 방어 | localStorage 저장 시 주의 |
+| **P3 (최적화)** | 토큰 크기 최소화 | 네트워크 효율 |
+
+### JWT 전환 체크리스트 (권장 값 포함) (#18)
+
+- [x] 전환 시 변경 지점 문서화
+- [x] JWT 버전 `get_current_user` 코드 예시
+- [x] 구현 우선순위 정리
+- [ ] Access Token 만료: **15분~30분** (짧을수록 안전, `ACCESS_TOKEN_EXPIRE_MINUTES=30`)
+- [ ] Refresh Token 만료: **7일~14일** (`REFRESH_TOKEN_EXPIRE_DAYS=7`)
+- [ ] HTTPS 필수: 프로덕션에서는 `Secure` 쿠키 + `HSTS` 헤더
+- [ ] Refresh Token 회전: 사용 시 새 토큰 발급 + 이전 토큰 무효화
+- [ ] 토큰 무효화: Redis 블랙리스트 또는 DB revocation 테이블
+- [ ] CSRF 보호: `SameSite=Strict` 쿠키 또는 CSRF 토큰 (`csrfProtect`)
+- [ ] XSS 방어: HttpOnly 쿠키에 JWT 저장 (`document.cookie` 접근 불가)
+- [ ] 알고리즘 고정: `HS256` 또는 `RS256` 명시 (algorithm confusion 방지)
 
 ---
 
