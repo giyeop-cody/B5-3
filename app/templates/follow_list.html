@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ target_user.username }}님의 {% if list_type == 'following' %}팔로잉{% else %}팔로워{% endif %} 목록{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 800px;">
+    <h2>👤 {{ target_user.username }}님의 {% if list_type == 'following' %}팔로잉{% else %}팔로워{% endif %} 목록</h2>
+
+    <div style="margin: 1.5rem 0;">
+        {% if users %}
+        <ul style="list-style: none; padding: 0;">
+            {% for u in users %}
+            <li style="padding: 0.75rem 1rem; background: white; border-radius: 8px; margin-bottom: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <a href="/users/{{ u.id }}" style="text-decoration: none; color: #2c3e50; font-weight: 500;">
+                    {{ u.username }}
+                </a>
+                {% if u.email %}
+                <span style="color: #999; margin-left: 0.5rem;">{{ u.email }}</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div style="padding: 2rem; text-align: center; background: white; border-radius: 8px; color: #999;">
+            {% if list_type == 'following' %}
+            팔로우하는 사용자가 없습니다.
+            {% else %}
+            팔로워가 없습니다.
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div>
+        <a href="/users/{{ target_user.id }}" style="color: #3498db; text-decoration: none;">← 프로필로</a>
+        &nbsp;|&nbsp;
+        <a href="/" style="color: #3498db; text-decoration: none;">홈으로</a>
+    </div>
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from app.database import engine, Base
-from app.routers import board_router, post_router, view_router
+from app.routers import board_router, post_router, view_router, follow_router
 from app.auth import router as auth_router
 from app.config import SECRET_KEY, SESSION_MAX_AGE
 import app.models
@@ -29,6 +29,7 @@ app.include_router(auth_router.router)
 app.include_router(board_router.router)
 app.include_router(post_router.router)
 app.include_router(view_router.router)  # 화면 라우터
+app.include_router(follow_router.router)  # 팔로우 API (회원 간 연결)
 
 
 @app.on_event("startup")
