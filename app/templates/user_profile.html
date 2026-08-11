@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ target_user.username }}님의 프로필{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 800px;">
+    <h2>👤 {{ target_user.username }}님의 프로필</h2>
+
+    {% if target_user.email %}
+    <p style="color: #666; margin: 0.5rem 0;">📧 {{ target_user.email }}</p>
+    {% endif %}
+
+    <div style="margin: 1.5rem 0; padding: 1rem; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h3>회원 간 연결 (팔로우)</h3>
+        <div style="display: flex; gap: 2rem; margin: 1rem 0;">
+            <div>
+                <a href="/users/{{ target_user.id }}/following" style="text-decoration: none; color: #2c3e50;">
+                    <strong style="font-size: 1.5rem;">{{ following_count }}</strong>
+                    <span style="color: #666;">팔로잉</span>
+                </a>
+            </div>
+            <div>
+                <a href="/users/{{ target_user.id }}/followers" style="text-decoration: none; color: #2c3e50;">
+                    <strong style="font-size: 1.5rem;">{{ followers_count }}</strong>
+                    <span style="color: #666;">팔로워</span>
+                </a>
+            </div>
+        </div>
+
+        {% if user and user.id != target_user.id %}
+            {% if is_following %}
+            <form action="/users/{{ target_user.id }}/unfollow" method="POST" style="display: inline;">
+                <button type="submit" style="padding: 0.5rem 1.5rem; background: #95a5a6; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    언팔로우
+                </button>
+            </form>
+            {% else %}
+            <form action="/users/{{ target_user.id }}/follow" method="POST" style="display: inline;">
+                <button type="submit" style="padding: 0.5rem 1.5rem; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    팔로우
+                </button>
+            </form>
+            {% endif %}
+        {% elif not user %}
+            <p style="color: #666; margin-top: 0.5rem;">
+                <a href="/login">로그인</a> 후 팔로우할 수 있습니다.
+            </p>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+        <a href="/" style="color: #3498db; text-decoration: none;">← 홈으로</a>
+    </div>
+</div>
+{% endblock %}

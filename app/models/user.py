@@ -41,5 +41,21 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+    # 회원 간 팔로우 관계 (과제 요구사항: "회원 간 팔로우/연결")
+    # following_assoc: 내가 팔로우 하는 관계 목록 (follower_id = 나)
+    # followers_assoc: 나를 팔로우 하는 관계 목록 (followed_id = 나)
+    following_assoc = relationship(
+        "Follow",
+        foreign_keys="Follow.follower_id",
+        back_populates="follower",
+        cascade="all, delete-orphan"
+    )
+    followers_assoc = relationship(
+        "Follow",
+        foreign_keys="Follow.followed_id",
+        back_populates="followed",
+        cascade="all, delete-orphan"
+    )
+
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}')>"

@@ -1,6 +1,6 @@
 """앱 시작 시 DB 초기화"""
 from app.database import SessionLocal, engine, Base
-from app.models import User, Board
+from app.models import User, Board, Follow
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -20,6 +20,15 @@ def init_data():
                 email="test@example.com"
             ))
             print("✓ 테스트 사용자 생성: testuser / test1234")
+
+        # 팔로우 데모용 두 번째 사용자 (회원 간 팔로우/연결 테스트)
+        if not db.query(User).filter(User.username == "demo_user").first():
+            db.add(User(
+                username="demo_user",
+                password_hash=pwd_context.hash("demo1234"),
+                email="demo@example.com"
+            ))
+            print("✓ 팔로우 데모용 사용자 생성: demo_user / demo1234")
 
         # 게시판
         if not db.query(Board).filter(Board.name == "자유게시판").first():
