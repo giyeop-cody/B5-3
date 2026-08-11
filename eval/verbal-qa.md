@@ -14,7 +14,7 @@
 
 - **회원가입/로그인/로그아웃**: 사용자를 식별하는 기능 (인증)
 - **접근 제어**: 로그인한 사람만 글을 쓰고/수정하고/삭제할 수 있게 (인가)
-- **회원 간 연결**: "이 사용자가 이 글을 썼다" 같은 관계 (연관관계)
+- **회원 간 연결**: 사용자가 다른 사용자를 팔로우(follow)하여 회원 간 관계를 맺는 기능
 - **상태 변경**: 글이 초안 → 공개 → 비공개로 바뀌는 것 (상태 전이)
 
 ### 왜 이걸 배우나요?
@@ -31,11 +31,11 @@
 | 2 | 회원가입 | ✅ 비밀번호 해싱 (passlib + bcrypt) |
 | 3 | 로그인한 사용자만 글 쓰기/수정/삭제 | ✅ 접근 제어 (보호 경로) |
 | 4 | 로그인 전/후 UI 변화 | ✅ 메뉴 활성화/비활성화, 환영 메시지 |
-| 5 | 3개 이상 모델 + 연관관계 | ✅ User, Board, Post (1:N 관계) |
+| 5 | 3개 이상 모델 + 연관관계 | ✅ User, Board, Post, Follow (1:N + N:M 팔로우) |
 | 6 | 상태 전이 로직 | ✅ 초안(draft) → 공개(published) → 비공개(hidden) |
 | 7 | 계층 분리 (Router → Service → Repository → Model) | ✅ 4계층 구조 |
 | 8 | 민감정보 .env 관리 | ✅ .env.example + .gitignore |
-| 9 | 보너스: JWT 인증 | ✅ python-jose (선택 구현) |
+| 9 | 보너스: JWT 인증 | 📄 python-jose 의존성만 있고 전환 가이드 문서 제공 (코드 구현은 없음) |
 
 ---
 
@@ -49,7 +49,7 @@
 - User (사용자): id, username, email, hashed_password
 - Board (게시판): id, name, description
 - Post (게시글): id, title, content, status, user_id(FK), board_id(FK)
-- 연관관계: User 1:N Post, Board 1:N Post
+- 연관관계: User 1:N Post, Board 1:N Post, User N:M User (팔로우, Follow 조인 테이블)
 
 ### Step 3: 인증 시스템 구현
 - 회원가입: 비밀번호를 bcrypt로 해싱해서 저장
@@ -198,6 +198,10 @@
 - Board 1:N Post: 한 게시판에 여러 글이 있을 수 있음
 - Post.user_id → User.id (FK)
 - Post.board_id → Board.id (FK)
+- User N:M User (팔로우): Follow 조인 테이블로 회원 간 연결 관계 모델링
+  - Follow.follower_id → User.id (팔로우 하는 사람)
+  - Follow.followed_id → User.id (팔로우 당하는 사람)
+  - UniqueConstraint로 중복 팔로우 방지
 
 ### Q6. "상태 전이 로직을 설명해주세요"
 **답**: 게시글은 3가지 상태를 가집니다:
@@ -233,3 +237,14 @@
 - **로그인 후**: "OOO님 환영합니다" + "글쓰기" + "내 글" + "로그아웃" 버튼 표시
 
 Jinja2 템플릿에서 `current_user` 변수로 분기해서 다른 UI를 보여줍니다.
+
+### Q11. "회원 간 팔로우 기능을 어떻게 구현했나요?"
+**답**: Follow 조인 테이블(follows)을 만들어 회원 간 N:M 관계를 모델링했습니다:
+- **Follow 모델**: follower_id(팔로우 하는 사람), followed_id(팔로우 당하는 사람)
+- **API**: POST /api/users/{id}/follow (팔로우), DELETE /api/users/{id}/follow (언팔로우)
+- **화면**: /users/{id} 프로필에서 팔로우/언팔로우 버튼, /users/{id}/following(팔로잉 목록), /users/{id}/followers(팔로워 목록)
+- **비즈니스 규칙**: 자기 자신 팔로우 금지, 중복 팔로우 방지 (UniqueConstraint)
+- **계층 분리**: FollowRouter → FollowService(규칙 검증) → FollowRepository(DB CRUD)
+
+### Q12. "팔로우 관계를 데이터베이스로 어떻게 모델링했나요?"
+**답**: follows 테이블에 두 개의 외래키(follower_id, followed_id)를 두어 User-User 간 N:M 관계를 표현했습니다. SQLAlchemy의 relationship으로 User.following_assoc(내가 팔로우하는 목록)과 User.followers_assoc(나를 팔로우하는 목록) 양방향 접근을 제공합니다. 순환참조 방지를 위해 응답에서는 ID만 사용합니다.

@@ -29,6 +29,8 @@ HTTP는 상태를 유지하지 않는다(stateless). 매 요청마다 서버는 
 
 `User`와 `Post`는 1:N 관계이다. `Post.author_id = Column(ForeignKey("users.id"))`로 외래키를 정의하고, `relationship("User", back_populates="posts")`로 객체 단위 접근을 가능하게 한다. `back_populates`로 양방향: `user.posts`로 사용자의 글 목록을, `post.author`로 글의 작성자를 바로 조회할 수 있다.
 
+회원 간 팔로우 관계는 `Follow` 조인 테이블로 N:M 관계를 모델링한다. `follows` 테이블에 `follower_id`와 `followed_id` 두 개의 FK를 두어 User-User 간 연결을 표현한다. `User.following_assoc`(내가 팔로우하는 목록)과 `User.followers_assoc`(나를 팔로우하는 목록)으로 양방향 접근하며, `UniqueConstraint("follower_id", "followed_id")`로 중복 팔로우를 방지한다.
+
 ### 1-6. 상태 전이 (PostStatus)
 
 게시글은 DRAFT(초안) → PUBLISHED(공개) → HIDDEN(비공개) 상태를 가진다. 상태 변경은 Service 계층에서 검증한다: 이미 공개된 글을 다시 공개하려 하면 `ValueError("이미 공개된 게시글입니다")`. 이것이 단순 CRUD가 아닌 비즈니스 로직이다.
@@ -127,6 +129,7 @@ templates/     → Jinja2
 | User → Post | 1:N | `all, delete-orphan` | 사용자 탈퇴 → 글 자동 삭제 |
 | Post → User | N:1 | - | 영향 없음 |
 | Board → Post | 1:N | 없음 | 게시판 삭제 → FK 오류 (글 보호) |
+| User → User (팔로우) | N:M | `all, delete-orphan` | 사용자 탈퇴 → 팔로우 관계 자동 삭제 |
 
 ### 3-4. 상태 전이
 
@@ -213,7 +216,7 @@ DRAFT (초안) ──publish──→ PUBLISHED (공개)
 | 세션 vs JWT? | 세션=서버 기억(즉시 로그아웃), JWT=토큰 자체(만료 전 유효) | `request.session["user_id"]` |
 | 비밀번호 어떻게 저장? | bcrypt 해싱, 평문 금지, verify로 검증 | `passlib.CryptContext(schemes=["bcrypt"])` |
 | Depends vs 미들웨어? | Depends=엔드포인트별 선택, 미들웨어=전역 강제 | 보호 경로에만 Depends 부착 |
-| 연관관계 설명? | User 1:N Post(cascade), Post N:1 Board(cascade 없음) | `back_populates`, `ForeignKey` |
+| 연관관계 설명? | User 1:N Post(cascade), Post N:1 Board(cascade 없음), User N:M User 팔로우(Follow 조인) | `back_populates`, `ForeignKey` |
 | 순환참조 해결? | 응답 모델에 FK ID만 포함, 객체 제외 | `PostResponse.author_id: int` |
 | 상태 변경 로직 어디에? | Service 계층 (권한 검사 + 전이 검증) | `post_service.publish_post()` |
 | 전체 구조 설명? | 인증→도메인→화면: 로그인→글작성→공개→상태변경→결과 | README 전체 흐름도 |
