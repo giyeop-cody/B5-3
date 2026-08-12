@@ -265,14 +265,10 @@ async def post_detail(
     try:
         post = post_service.get_post(post_id, user_id=user.id if user else None)
 
-        response = templates.TemplateResponse(
+        return templates.TemplateResponse(
             request, "posts/detail.html",
             {"user": user, "post": post, "flash": flash}
         )
-        # 브라우저 캐시 방지 (뒤로 가기 시 비공개 글/수정버튼 노출 방지)
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        return response
     except ValueError:
         set_flash(request, "error", f"게시글 #{post_id}를 찾을 수 없습니다.")
         return RedirectResponse(url="/boards", status_code=302)
@@ -302,13 +298,10 @@ async def post_edit_page(
             set_flash(request, "error", "자신의 게시글만 수정할 수 있습니다.")
             return RedirectResponse(url=f"/posts/{post_id}", status_code=302)
 
-        response = templates.TemplateResponse(
+        return templates.TemplateResponse(
             request, "posts/edit.html",
             {"user": user, "post": post, "flash": flash}
         )
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        return response
     except ValueError:
         set_flash(request, "error", f"게시글 #{post_id}를 찾을 수 없습니다.")
         return RedirectResponse(url="/boards", status_code=302)
