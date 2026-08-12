@@ -5,6 +5,8 @@ from app.database import get_db
 from app.repositories.board_repository import BoardRepository
 from app.services.board_service import BoardService
 from app.schemas import BoardCreate, BoardResponse
+from app.auth.dependencies import get_current_user
+from app.models import User
 from typing import List
 
 router = APIRouter(prefix="/api/boards", tags=["boards"])
@@ -37,9 +39,10 @@ async def get_board(
 @router.post("/", response_model=BoardResponse, status_code=status.HTTP_201_CREATED)
 async def create_board(
     board_data: BoardCreate,
-    board_service: BoardService = Depends(get_board_service)
+    board_service: BoardService = Depends(get_board_service),
+    current_user: User = Depends(get_current_user)
 ):
-    """게시판 생성"""
+    """게시판 생성 (인증 필요)"""
     try:
         return board_service.create_board(
             name=board_data.name,

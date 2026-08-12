@@ -18,19 +18,19 @@ class PostService:
                 raise ValueError("비공개 게시글입니다")
         return post
 
-    def get_all_posts(self, skip: int = 0, limit: int = 100) -> List[Post]:
-        return self.post_repo.get_all(skip=skip, limit=limit)
+    def get_all_posts(self, skip: int = 0, limit: int = 100, viewer_id: int = None) -> List[Post]:
+        return self.post_repo.get_all(skip=skip, limit=limit, viewer_id=viewer_id)
 
-    def get_posts_by_author(self, author_id: int) -> List[Post]:
-        return self.post_repo.get_by_author(author_id)
+    def get_posts_by_author(self, author_id: int, viewer_id: int = None) -> List[Post]:
+        return self.post_repo.get_by_author(author_id, viewer_id=viewer_id)
 
-    def get_posts_by_board(self, board_id: int) -> List[Post]:
-        return self.post_repo.get_by_board(board_id)
+    def get_posts_by_board(self, board_id: int, viewer_id: int = None) -> List[Post]:
+        return self.post_repo.get_by_board(board_id, viewer_id=viewer_id)
 
-    def search_posts(self, query: str) -> List[Post]:
+    def search_posts(self, query: str, viewer_id: int = None) -> List[Post]:
         if not query or len(query.strip()) < 2:
             raise ValueError("검색어는 2글자 이상이어야 합니다")
-        return self.post_repo.search(query)
+        return self.post_repo.search(query, viewer_id=viewer_id)
 
     def create_post(
         self,
