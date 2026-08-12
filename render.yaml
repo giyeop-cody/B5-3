@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: b5-3-fastapi
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:///./app.db
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    plan: free
