@@ -1004,78 +1004,256 @@ async def get_current_user(
 ## 📋 평가 기준 문답 (사전평가 18항목 기반)
 
 > 플랫폼 AI 사전평가 18개 항목(3회차 18/18 만점) 기준으로, 평가자가 물어볼 수 있는 질문과 답변을 정리.
+> **📁 보여줄 파일** = 평가 중 코드를 열어 보여주면서 설명할 파일.
+
+---
 
 ### 항목 1: 인증 (세션 기반 로그인/로그아웃)
-**Q. 인증을 어떻게 구현했나요?**
-A. 세션 기반 인증을 사용했습니다. `itsdangerous`로 서명된 세션 쿠키에 user_id를 저장하고, 매 요청마다 `get_current_user_from_session(request)`로 사용자를 식별합니다. 로그인 성공 시 `login_user(request, user.id)`, 로그아웃 시 `logout_user(request)`로 세션을 관리합니다. (`app/auth/session.py`)
+
+**질문**: 인증을 어떻게 구현했나요?
+
+**답변**: 세션 기반 인증을 사용했습니다. `itsdangerous`로 서명된 세션 쿠키에 user_id를 저장하고, 매 요청마다 `get_current_user_from_session(request)`로 사용자를 식별합니다. 로그인 성공 시 `login_user(request, user.id)`, 로그아웃 시 `logout_user(request)`로 세션을 관리합니다.
+
+**📁 보여줄 파일**: `app/auth/session.py`
+- `login_user()` 9줄 → 세션에 user_id 저장
+- `logout_user()` 28줄 → 세션에서 user_id 삭제
+- `get_current_user_from_session()` 9줄 → 세션에서 user_id 읽어 User 객체 반환
+
+**演示 순서**: `app/auth/router.py` POST /login → `auth/service.py` authenticate(bcrypt 검증) → `session.py` login_user → 쿠키 발급
+
+---
 
 ### 항목 2: 비인증 접근 시 안내
-**Q. 로그인 안 한 사용자가 보호 페이지에 접근하면?**
-A. 화면은 `/login?next={원래URL}`로 302 리다이렉트, API는 401 JSON 에러를 반환합니다. 화면은 사용자 경험(UX)을 위해 리다이렉트, API는 명확한 상태 코드를 반환하는 정책입니다. (`app/auth/dependencies.py`, `app/routers/view_router.py`)
 
-### 항목 3: 보호 경로 목록
-**Q. 공개/보호 경로를 어떻게 나눴나요?**
-A. README의 경로 정책 표에 명시했습니다. 공개: 홈, 게시판 목록/상세, 게시글 읽기, 로그인 페이지. 보호: 글쓰기, 수정, 삭제, 공개/비공개 전환, 내 글, 팔로우/언팔로우. 보호 경로는 `Depends(get_current_user)` 또는 세션 체크로 보호합니다.
+**질문**: 로그인 안 한 사용자가 보호 페이지에 접근하면 어떻게 되나요?
+
+**답변**: 화면은 `/login?next={원래URL}`로 302 리다이렉트, API는 401 JSON 에러를 반환합니다. 화면은 사용자 경험(UX)을 위해 리다이렉트, API는 명확한 상태 코드를 반환하는 정책입니다.
+
+**📁 보여줄 파일**: `app/auth/dependencies.py`
+- `get_current_user()` 8줄 → 인증 안 되면 401 HTTPException
+- `app/routers/view_router.py` 138줄 `my_posts()` → `if not user: return RedirectResponse(url="/login?next=/my-posts")`
+
+**演示 순서**: 비로그인 상태로 `/posts/new` 직접 접속 → 로그인 페이지로 리다이렉트 확인
+
+---
+
+### 항목 3: 보호 경로 목록 (공개/보호 분리)
+
+**질문**: 공개/보호 경로를 어떻게 나눴나요?
+
+**답변**: README의 경로 정책 표에 명시했습니다. 공개: 홈, 게시판 목록/상세, 게시글 읽기, 로그인 페이지. 보호: 글쓰기, 수정, 삭제, 공개/비공개 전환, 내 글, 팔로우/언팔로우. 보호 경로는 `Depends(get_current_user)` 또는 세션 체크로 보호합니다.
+
+**📁 보여줄 파일**: `app/routers/view_router.py` — 각 라우트 함수 상단의 `if not user:` 또는 `Depends(get_current_user)` 부분
+- 공개: 123줄 `boards_list()`, 254줄 `post_detail()` — user 체크 없음
+- 보호: 139줄 `my_posts()`, 184줄 `post_create_page()` — `if not user:` 리다이렉트
+
+---
 
 ### 항목 4: 로그인 전/후 UI 변화
-**Q. 로그인 전후 화면이 어떻게 달라지나요?**
-A. `base.html`에서 `{% if user %}`로 분기합니다. 로그인 전: "로그인" 버튼만. 로그인 후: "OOO님" + "글쓰기" + "내 글" + "내 프로필" + "로그아웃" 버튼 표시.
+
+**질문**: 로그인 전후 화면이 어떻게 달라지나요?
+
+**답변**: `base.html`에서 `{% if user %}`로 분기합니다. 로그인 전: "로그인" 버튼만. 로그인 후: "OOO님" + "글쓰기" + "내 글" + "내 프로필" + "로그아웃" 버튼 표시.
+
+**📁 보여줄 파일**: `app/templates/base.html`
+- 296줄 근처 `{% if user %}` 블록 → "내 글", "내 프로필", "{user.username}님", "로그아웃" 버튼
+- `{% else %}` 블록 → "로그인" 버튼만
+
+**演示 순서**: 로그인 전 홈 화면 → 로그인 후 홈 화면 → 네비게이션 바 변화 확인
+
+---
 
 ### 항목 5: 연관관계 데이터 출력
-**Q. 모델 간 연관관계를 어떻게 구현했나요?**
-A. User 1:N Post, Board 1:N Post, User N:M User (팔로우). `relationship` + `back_populates`로 양방향 관계. 예: `post.author.username`으로 작성자 이름에 바로 접근. Follow 조인 테이블로 회원 간 팔로우 관계 모델링.
+
+**질문**: 모델 간 연관관계를 어떻게 구현했나요?
+
+**답변**: User 1:N Post, Board 1:N Post, User N:M User (팔로우). `relationship` + `back_populates`로 양방향 관계. 예: `post.author.username`으로 작성자 이름에 바로 접근. Follow 조인 테이블로 회원 간 팔로우 관계 모델링.
+
+**📁 보여줄 파일**:
+- `app/models/user.py` 38줄 → `posts = relationship("Post", back_populates="author")`
+- `app/models/post.py` 60줄 → `author = relationship("User", back_populates="posts")`
+- `app/models/follow.py` 17줄 → `class Follow` (follower_id, followed_id로 N:M 구현)
+
+**演示 순서**: 게시글 상세 페이지 → `post.author.username`이 화면에 표시되는 것 확인 → 작성자 이름 클릭 → 프로필 페이지로 이동
+
+---
 
 ### 항목 6: 상태 전이 로직
-**Q. 게시글 상태 전이를 어떻게 구현했나요?**
-A. `PostStatus` Enum(draft/published/hidden)으로 관리. `post_service.py`에서 `publish_post()`와 `hide_post()`가 상태 전이 규칙을 검증합니다. 잘못된 전이(예: 이미 공개된 글을 다시 공개) 시 `ValueError` 발생 → 화면에 flash 메시지로 안내.
+
+**질문**: 게시글 상태 전이를 어떻게 구현했나요?
+
+**답변**: `PostStatus` Enum(draft/published/hidden)으로 관리. `post_service.py`에서 `publish_post()`와 `hide_post()`가 상태 전이 규칙을 검증합니다. 잘못된 전이(예: 이미 공개된 글을 다시 공개) 시 `ValueError` 발생 → 화면에 flash 메시지로 안내.
+
+**📁 보여줄 파일**: `app/models/post.py` 24줄 → `PostStatus` Enum (DRAFT/PUBLISHED/HIDDEN + 전이 다이어그램 주석)
+- `app/services/post_service.py` 86줄 `publish_post()` → 이미 공개된 글이면 `ValueError`
+- `app/services/post_service.py` 98줄 `hide_post()` → 이미 비공개면 `ValueError`
+
+**演示 순서**: 글 작성(초안) → "공개하기" 버튼 → "비공개로 변경" 버튼 → 상태 배지 변화 확인
+
+---
 
 ### 항목 7: 환경변수 관리
-**Q. 민감 정보를 어떻게 관리하나요?**
-A. `.env` 파일에 SECRET_KEY, DATABASE_URL 등을 저장하고 `.gitignore`에 `.env`를 포함시켰습니다. `.env.example`에 변수 목록만 제공하고, `config.py`에서 `os.getenv()`로 읽습니다.
+
+**질문**: 민감 정보를 어떻게 관리하나요?
+
+**답변**: `.env` 파일에 SECRET_KEY, DATABASE_URL 등을 저장하고 `.gitignore`에 `.env`를 포함시켰습니다. `.env.example`에 변수 목록만 제공하고, `config.py`에서 `os.getenv()`로 읽습니다.
+
+**📁 보여줄 파일**:
+- `app/config.py` 8줄 → `SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))`
+- `app/config.py` 14줄 → `DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")`
+- `.env.example` — 변수 목록 (실제 값 없음)
+- `.gitignore` — `.env` 포함 확인
+
+---
 
 ### 항목 8: 모듈 분리
-**Q. 계층을 어떻게 나눴나요?**
-A. 4계층: `routers/` (HTTP 처리) → `services/` (비즈니스 로직) → `repositories/` (DB CRUD) → `models/` (데이터 구조). 인증은 별도 `auth/` 모듈로 분리. 각 계층은 하나의 역할만 담당.
 
-### 항목 9: 관계 설계
-**Q. back_populates를 왜 사용했나요?**
-A. 양방향 접근을 위해. `user.posts`로 사용자의 글 목록을, `post.author`로 글의 작성자를 바로 조회할 수 있습니다. 단방향보다 사용이 편리하지만, 순환참조 주의가 필요합니다.
+**질문**: 계층을 어떻게 나눴나요?
+
+**답변**: 4계층: `routers/` (HTTP 처리) → `services/` (비즈니스 로직) → `repositories/` (DB CRUD) → `models/` (데이터 구조). 인증은 별도 `auth/` 모듈로 분리. 각 계층은 하나의 역할만 담당.
+
+**📁 보여줄 파일**: 프로젝트 구조 (디렉터리 트리)
+- `app/routers/post_router.py` — URL 처리, 요청/응답
+- `app/services/post_service.py` — 권한 검사, 상태 전이 검증
+- `app/repositories/post_repository.py` — DB CRUD만
+- `app/models/post.py` — 데이터 구조 정의
+- `app/auth/` — 인증 모듈 (별도 분리)
+
+**演示 순서**: 하나의 요청(예: 게시글 작성)이 4계층을 통과하는 흐름 설명: Router → Service → Repository → Model
+
+---
+
+### 항목 9: 관계 설계 (back_populates)
+
+**질문**: back_populates를 왜 사용했나요?
+
+**답변**: 양방향 접근을 위해. `user.posts`로 사용자의 글 목록을, `post.author`로 글의 작성자를 바로 조회할 수 있습니다. 단방향보다 사용이 편리하지만, 순환참조 주의가 필요합니다.
+
+**📁 보여줄 파일**:
+- `app/models/user.py` 38줄 → `posts = relationship("Post", back_populates="author")`
+- `app/models/post.py` 60줄 → `author = relationship("User", back_populates="posts")`
+- 같은 문자열("author", "posts")로 양쪽이 연결됨을 보여줌
+
+---
 
 ### 항목 10: 트랜잭션 경계
-**Q. 트랜잭션을 어디서 관리하나요?**
-A. 단일 CRUD는 Repository에서 `commit()`합니다. 복합 비즈니스 로직(상태 전이 + 권한 검증)은 Service 계층에서 처리하며, 실패 시 예외를 발생시켜 Router가 HTTP 에러로 변환합니다.
+
+**질문**: 트랜잭션을 어디서 관리하나요?
+
+**답변**: 단일 CRUD는 Repository에서 `commit()`합니다. 복합 비즈니스 로직(상태 전이 + 권한 검증)은 Service 계층에서 처리하며, 실패 시 예외를 발생시켜 Router가 HTTP 에러로 변환합니다.
+
+**📁 보여줄 파일**:
+- `app/repositories/post_repository.py` 74줄 `create()` → `self.db.add(post); self.db.commit()`
+- `app/services/post_service.py` 86줄 `publish_post()` → 권한 검사 + 상태 검증 후 Repository 호출
+- `app/routers/post_router.py` 115줄 `publish_post()` → `except ValueError: HTTPException(400)` 변환
+
+---
 
 ### 항목 11: FK 제약 (삭제 정책)
-**Q. 삭제 정책을 어떻게 설계했나요?**
-A. User→Post: `cascade="all, delete-orphan"` (사용자 탈퇴 시 글 자동 삭제). Board→Post: cascade 없음 (게시판 삭제 시 FK 제약으로 글이 있으면 삭제 불가 → 글 보호). 정책 이유는 모델 주석에 명시.
+
+**질문**: 삭제 정책을 어떻게 설계했나요?
+
+**답변**: User→Post: `cascade="all, delete-orphan"` (사용자 탈퇴 시 글 자동 삭제). Board→Post: cascade 없음 (게시판 삭제 시 FK 제약으로 글이 있으면 삭제 불가 → 글 보호). 정책 이유는 모델 주석에 명시.
+
+**📁 보여줄 파일**:
+- `app/models/user.py` 41줄 → `cascade="all, delete-orphan"` (User→Post)
+- `app/models/board.py` 25줄 → `# cascade 없음 (의도적 선택)` 주석 + 이유 설명
+
+**답변 포인트**: "탈퇴하면 글도 삭제(O), 게시판 삭제하면 글은 보호(O)" — 상황에 따라 다른 정책을 의도적으로 선택
+
+---
 
 ### 항목 12: JWT 전환 가이드
-**Q. 세션에서 JWT로 전환하려면?**
-A. `get_current_user` 함수 내부만 바꾸면 됩니다 — 세션 쿠키 읽기 → JWT 토큰 검증으로 교체. Depends 인터페이스가 같으므로 라우터 코드는 변경 없음. README에 전환 체크리스트가 있습니다.
+
+**질문**: 세션에서 JWT로 전환하려면?
+
+**답변**: `get_current_user` 함수 내부만 바꾸면 됩니다 — 세션 쿠키 읽기 → JWT 토큰 검증으로 교체. Depends 인터페이스가 같으므로 라우터 코드는 변경 없음. README에 전환 체크리스트가 있습니다.
+
+**📁 보여줄 파일**:
+- `app/auth/dependencies.py` 8줄 `get_current_user()` → "이 함수 내부만 바꾸면 됨"
+- README "세션 → JWT 전환 가이드" 섹션 (908줄~)
+
+---
 
 ### 항목 13: 미들웨어 vs Depends
-**Q. 미들웨어와 Depends 중 어디서 인증을?**
-A. Depends를 주 정책으로 사용합니다. 미들웨어는 세션 쿠키 파싱만 담당하고, 인증 필요 여부는 각 엔드포인트의 `Depends(get_current_user)`로 선언합니다. 공개/보호 경로를 코드에서 명시적으로 구분할 수 있습니다.
+
+**질문**: 미들웨어와 Depends 중 어디서 인증을?
+
+**답변**: Depends를 주 정책으로 사용합니다. 미들웨어는 세션 쿠키 파싱만 담당하고, 인증 필요 여부는 각 엔드포인트의 `Depends(get_current_user)`로 선언합니다. 공개/보호 경로를 코드에서 명시적으로 구분할 수 있습니다.
+
+**📁 보여줄 파일**:
+- `app/main.py` 38줄 → `app.add_middleware(NoCacheMiddleware)` — 캐시 방지만, 인증은 안 함
+- `app/main.py` 41줄 → `app.add_middleware(SessionMiddleware)` — 세션 쿠키 파싱만
+- `app/routers/post_router.py` 58줄 → `Depends(get_current_user)` — 각 엔드포인트에서 인증 선언
+
+**답변 포인트**: "미들웨어는 모든 요청에 강제 적용 → 공개 경로도 예외 처리해야 복잡. Depends는 엔드포인트별 선택적 적용 → 공개/보호 명시적 구분"
+
+---
 
 ### 항목 14: 직렬화 (Pydantic)
-**Q. SQLAlchemy 객체를 JSON으로 변환할 때 주의점은?**
-A. `PostResponse`에 `author_id: int`만 포함하고 `author: User` 객체는 제외합니다. `from_attributes = True`로 SQLAlchemy 객체를 Pydantic으로 변환하지만, 관계 객체 전체를 포함하면 순환참조가 발생합니다.
+
+**질문**: SQLAlchemy 객체를 JSON으로 변환할 때 주의점은?
+
+**답변**: `PostResponse`에 `author_id: int`만 포함하고 `author: User` 객체는 제외합니다. `from_attributes = True`로 SQLAlchemy 객체를 Pydantic으로 변환하지만, 관계 객체 전체를 포함하면 순환참조가 발생합니다.
+
+**📁 보여줄 파일**: `app/schemas.py`
+- 55줄 `PostResponse` → `author_id: int` (객체 아님, ID만)
+- 69줄 → `from_attributes = True`
+- 6줄 주석 → "FK ID만 포함하여 순환참조 방지"
+
+---
 
 ### 항목 15: 복합 트랜잭션 롤백
-**Q. 여러 DB 조작이 필요한 작업은?**
-A. Service 계층에서 처리합니다. 권한 검사 → 상태 검증 → DB 업데이트 순서로 실행하며, 중간에 예외가 발생하면 commit 전이므로 자동으로 롤백됩니다.
+
+**질문**: 여러 DB 조작이 필요한 작업은?
+
+**답변**: Service 계층에서 처리합니다. 권한 검사 → 상태 검증 → DB 업데이트 순서로 실행하며, 중간에 예외가 발생하면 commit 전이므로 자동으로 롤백됩니다.
+
+**📁 보여줄 파일**: `app/services/post_service.py` 86줄 `publish_post()`
+- `post = self.post_repo.get_by_id(post_id)` — 조회
+- `if post.author_id != user_id: raise PermissionError` — 권한 검사
+- `if post.status == PostStatus.PUBLISHED: raise ValueError` — 상태 검증
+- `return self.post_repo.update_status(post, PostStatus.PUBLISHED)` — commit (검증 통과 시에만)
+
+---
 
 ### 항목 16: 인증 실패 시 사용자 경험
-**Q. 인증 실패 시 사용자에게 어떻게 안내하나요?**
-A. 화면: flash 메시지("로그인이 필요합니다") + `/login?next={URL}` 리다이렉트. API: 401 JSON `{"detail": "로그인이 필요합니다"}`. 로그인 실패: "아이디 또는 비밀번호가 올바르지 않습니다" 메시지.
+
+**질문**: 인증 실패 시 사용자에게 어떻게 안내하나요?
+
+**답변**: 화면: flash 메시지("로그인이 필요합니다") + `/login?next={URL}` 리다이렉트. API: 401 JSON `{"detail": "로그인이 필요합니다"}`. 로그인 실패: "아이디 또는 비밀번호가 올바르지 않습니다" 메시지.
+
+**📁 보여줄 파일**:
+- `app/routers/view_router.py` 139줄 → `RedirectResponse(url="/login?next=/my-posts")`
+- `app/auth/dependencies.py` 12줄 → `HTTPException(status_code=401, detail="로그인이 필요합니다")`
+- `app/routers/view_router.py` 95줄 → 로그인 실패 시 "아이디 또는 비밀번호가 올바르지 않습니다"
+
+**演示 순서**: 로그인 실패(틀린 비밀번호) → 에러 메시지 확인 → 보호 페이지 직접 접속 → 로그인 페이지로 리다이렉트
+
+---
 
 ### 항목 17: 순환참조/직렬화 주의사항
-**Q. 양방향 관계의 순환참조를 어떻게 해결했나요?**
-A. `User → posts → [Post → author → User → ...]` 무한 순환이 발생합니다. 해결: Pydantic 응답 모델에 FK ID(`author_id`, `board_id`)만 포함하고 관계 객체(`author`, `board`)는 제외합니다. Jinja2 템플릿에서는 `post.author.username`처럼 필요한 필드만 선택적 접근합니다. (`app/schemas.py`, `app/models/post.py` 주석)
+
+**질문**: 양방향 관계의 순환참조를 어떻게 해결했나요?
+
+**답변**: `User → posts → [Post → author → User → ...]` 무한 순환이 발생합니다. 해결: Pydantic 응답 모델에 FK ID(`author_id`, `board_id`)만 포함하고 관계 객체(`author`, `board`)는 제외합니다. Jinja2 템플릿에서는 `post.author.username`처럼 필요한 필드만 선택적 접근합니다.
+
+**📁 보여줄 파일**:
+- `app/models/post.py` 55줄 주석 → "순환참조 주의: Post → User(author) → Post(posts) → ... 무한 순환"
+- `app/schemas.py` 63줄 → `author_id: int` (author 객체 제외)
+- `app/templates/posts/detail.html` → `post.author.username` (필요한 필드만 접근)
+
+**답변 포인트**: "응답(JSON)에서는 ID만, 템플릿(HTML)에서는 객체 접근 — 용도에 따라 다르게 처리"
+
+---
 
 ### 항목 18: JWT 전환 체크리스트
-**Q. JWT 전환 시 고려사항은?**
-A. README의 체크리스트에 정리했습니다: 토큰 만료 시간 설정, 리프레시 토큰, 블랙리스트(무효화), CSRF 대책, Depends 인터페이스 유지. 세션의 "즉시 로그아웃" 장점을 JWT에서는 블랙리스트로 구현해야 합니다.
+
+**질문**: JWT 전환 시 고려사항은?
+
+**답변**: README의 체크리스트에 정리했습니다: 토큰 만료 시간 설정, 리프레시 토큰, 블랙리스트(무효화), CSRF 대책, Depends 인터페이스 유지. 세션의 "즉시 로그아웃" 장점을 JWT에서는 블랙리스트로 구현해야 합니다.
+
+**📁 보여줄 파일**: README "JWT 전환 체크리스트" 섹션 (973줄~)
 
 ---
 
