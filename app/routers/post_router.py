@@ -44,11 +44,13 @@ async def list_posts(
 @router.get("/{post_id}", response_model=PostResponse)
 async def get_post(
     post_id: int,
-    post_service: PostService = Depends(get_post_service)
+    post_service: PostService = Depends(get_post_service),
+    current_user: User = Depends(get_current_user)
 ):
     """게시글 상세 조회"""
+    user_id = current_user.id if current_user else None
     try:
-        return post_service.get_post(post_id)
+        return post_service.get_post(post_id, user_id=user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
