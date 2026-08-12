@@ -17,7 +17,7 @@ class AuthService:
             password: 평문 비밀번호
             
         Returns:
-           认证成功 시 User 객체, 실패 시 None
+           인증 성공 시 User 객체, 실패 시 None
         """
         # 사용자 조회
         user = self.user_repo.get_by_username(username)
