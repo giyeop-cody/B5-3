@@ -1,5 +1,6 @@
 """FastAPI 게시판 서비스 - 메인 앱"""
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import engine, Base
@@ -7,6 +8,7 @@ from app.routers import board_router, post_router, view_router, follow_router
 from app.auth import router as auth_router
 from app.auth.jwt_router import router as jwt_router
 from app.auth.oauth_router import router as oauth_router
+from app.auth.exceptions import AppException, NotFoundError, PermissionDeniedError, ConflictError, ValidationError
 from app.config import SECRET_KEY, SESSION_MAX_AGE
 import app.models
 from app.startup import init_data
@@ -54,6 +56,53 @@ app.include_router(view_router.router)  # 화면 라우터
 app.include_router(follow_router.router)  # 팔로우 API (회원 간 연결)
 app.include_router(jwt_router)  # 보너스: JWT 인증 API
 app.include_router(oauth_router)  # 보너스: OAuth2 소셜 로그인
+
+
+# ===== 보너스: 전역 예외 처리 (일관된 에러 응답) =====
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    """커스텀 예외 → 일관된 JSON 에러 응답"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "error_code": exc.error_code,
+            "message": exc.message,
+        },
+    )
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_handler(request: Request, exc: NotFoundError):
+    return JSONResponse(
+        status_code=404,
+        content={"error": True, "error_code": "NOT_FOUND", "message": exc.message},
+    )
+
+
+@app.exception_handler(PermissionDeniedError)
+async def permission_handler(request: Request, exc: PermissionDeniedError):
+    return JSONResponse(
+        status_code=403,
+        content={"error": True, "error_code": "PERMISSION_DENIED", "message": exc.message},
+    )
+
+
+@app.exception_handler(ConflictError)
+async def conflict_handler(request: Request, exc: ConflictError):
+    return JSONResponse(
+        status_code=409,
+        content={"error": True, "error_code": "CONFLICT", "message": exc.message},
+    )
+
+
+@app.exception_handler(ValidationError)
+async def validation_handler(request: Request, exc: ValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"error": True, "error_code": "VALIDATION_ERROR", "message": exc.message},
+    )
 
 
 @app.on_event("startup")

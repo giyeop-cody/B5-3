@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 from app.repositories.follow_repository import FollowRepository
 from app.repositories.user_repository import UserRepository
+from app.auth.exceptions import ValidationError, NotFoundError, ConflictError
 
 
 class FollowService:
@@ -19,21 +20,21 @@ class FollowService:
         3. 이미 팔로우 중이면 중복 생성하지 않음
         """
         if follower_id == followed_id:
-            raise ValueError("자기 자신을 팔로우할 수 없습니다.")
+            raise ValidationError("자기 자신을 팔로우할 수 없습니다.")
 
         target = self.user_repo.get_by_id(followed_id)
         if not target:
-            raise ValueError("존재하지 않는 사용자입니다.")
+            raise NotFoundError("사용자")
 
         if self.follow_repo.is_following(follower_id, followed_id):
-            raise ValueError("이미 팔로우하고 있는 사용자입니다.")
+            raise ConflictError("이미 팔로우하고 있는 사용자입니다.")
 
         return self.follow_repo.create(follower_id, followed_id)
 
     def unfollow(self, follower_id: int, followed_id: int):
         """언팔로우 (회원 간 연결 해제)"""
         if not self.follow_repo.is_following(follower_id, followed_id):
-            raise ValueError("팔로우하고 있지 않은 사용자입니다.")
+            raise ValidationError("팔로우하고 있지 않은 사용자입니다.")
 
         self.follow_repo.delete(follower_id, followed_id)
 

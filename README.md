@@ -1288,17 +1288,54 @@ async def get_current_user(
 
 ---
 
-## 🎁 보너스: JWT 인증 구현 (bonus/jwt-auth 브랜치)
+## 🎁 보너스 과제 (5개 전부 구현)
 
-> 세션 기반 인증을 JWT 기반으로 전환한 보너스 구현입니다.
-> `bonus/jwt-auth` 브랜치에서 확인할 수 있습니다.
+> 과제에서 명시한 5개 보너스를 `bonus/jwt-auth` 브랜치에서 전부 구현했습니다.
 
-### 추가 파일
+### 보너스 1: 전역 예외 처리
 
 | 파일 | 설명 |
 |------|------|
-| `app/auth/jwt_manager.py` | JWT 토큰 생성/검증/무효화 (access + refresh) |
-| `app/auth/jwt_dependencies.py` | JWT 인증 Depends (Bearer 토큰 추출) |
+| `app/auth/exceptions.py` | 커스텀 예외 클래스 (AppException, NotFoundError, PermissionDeniedError, ConflictError, ValidationError) |
+| `app/main.py` | `@app.exception_handler`로 5개 예외를 일관된 JSON 응답으로 처리 |
+
+### 보너스 2: 검색 / 필터 기능
+
+| 구현 | 설명 |
+|------|------|
+| `GET /api/posts/?q=검색어` | 제목/내용 기반 검색 (SQLAlchemy ilike) |
+| `GET /api/posts/?board_id=N` | 게시판별 필터 |
+| `GET /api/posts/?author_id=N` | 작성자별 필터 |
+
+### 보너스 3: OAuth2 소셜 로그인
+
+| 파일 | 설명 |
+|------|------|
+| `app/auth/oauth_router.py` | GitHub OAuth2 (login → callback → 자동 가입/로그인) |
+
+### 보너스 4: 비밀번호 해싱 및 회원가입
+
+| 구현 | 설명 |
+|------|------|
+| `app/auth/password.py` | bcrypt 해싱 (passlib) |
+| `POST /api/auth/register` | 회원가입 API |
+| `app/auth/service.py` | register() — 중복 체크 + 비밀번호 해싱 |
+
+### 보너스 5: 외부 배포
+
+| 파일 | 설명 |
+|------|------|
+| `render.yaml` | Render.com 배포 설정 |
+| `Procfile` | 배포 시작 명령 |
+| `app/startup.py` | 배포 시 자동 DB 초기화 |
+| `app/config.py` | 환경변수 기반 설정 (SECRET_KEY, DATABASE_URL 등) |
+
+### 보너스: JWT 인증 (추가 구현)
+
+| 파일 | 설명 |
+|------|------|
+| `app/auth/jwt_manager.py` | JWT 토큰 생성/검증/무효화 (access 30분 + refresh 7일) |
+| `app/auth/jwt_dependencies.py` | Bearer 토큰 추출 Depends |
 | `app/auth/jwt_router.py` | JWT API (login/refresh/logout/me) |
 
 ### JWT API 엔드포인트
@@ -1319,96 +1356,34 @@ async def get_current_user(
 | 만료 | SESSION_MAX_AGE (24시간) | access 30분 / refresh 7일 |
 | 로그아웃 | 세션 삭제 | 블랙리스트 (토큰 무효화) |
 | 확장성 | 단일 서버 | 분산 서버 (토큰 자체 검증) |
-| 즉시 로그아웃 | ✅ (세션 삭제) | ⚠️ 블랙리스트 필요 |
 
 ### 사용 예시
 
 ```bash
-# 로그인
+# JWT 로그인
 curl -X POST http://localhost:8000/api/jwt/login \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","password":"test1234"}'
-# → {"access_token":"eyJ...","refresh_token":"eyJ...","token_type":"bearer","expires_in":1800}
 
-# 인증 필요 API 호출
-curl http://localhost:8000/api/jwt/me \
-  -H "Authorization: Bearer eyJ..."
+# OAuth2 GitHub 로그인 (브라우저)
+http://localhost:8000/api/oauth/github/login
 
-# 토큰 재발급
-curl -X POST http://localhost:8000/api/jwt/refresh \
+# 회원가입
+curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"refresh_token":"eyJ..."}'
-
-# 로그아웃 (토큰 무효화)
-curl -X POST http://localhost:8000/api/jwt/logout \
-  -H "Authorization: Bearer eyJ..."
+  -d '{"username":"newuser","password":"pass1234","email":"new@test.com"}'
 ```
 
-### 환경변수 (JWT 관련)
+### 환경변수 (보너스 관련)
 
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
 | `JWT_ALGORITHM` | HS256 | JWT 서명 알고리즘 |
 | `JWT_ACCESS_EXPIRE` | 30 | access token 만료 (분) |
 | `JWT_REFRESH_EXPIRE` | 7 | refresh token 만료 (일) |
-
----
-
-## 🎁 보너스: OAuth2 소셜 로그인 (GitHub)
-
-> 과제에서 명시한 보너스: "OAuth2 소셜 로그인은 보너스 과제에서 선택적으로 다룬다."
-> GitHub OAuth2 소셜 로그인을 구현했습니다.
-
-### 추가 파일
-
-| 파일 | 설명 |
-|------|------|
-| `app/auth/oauth_router.py` | GitHub OAuth2 로그인 (리다이렉트 → 콜백 → 자동 가입) |
-
-### OAuth2 API 엔드포인트
-
-| 메서드 | 경로 | 설명 |
-|--------|------|------|
-| GET | `/api/oauth/github/login` | GitHub 로그인 페이지로 리다이렉트 |
-| GET | `/api/oauth/github/callback` | GitHub 콜백 → 토큰 교환 → 사용자 정보 조회 → 자동 가입/로그인 |
-
-### 동작 흐름
-
-```
-1. 사용자가 /api/oauth/github/login 접속
-2. GitHub 로그인 페이지로 리다이렉트 (client_id, scope=user:email)
-3. 사용자가 GitHub에서 "Authorize" 클릭
-4. GitHub이 /api/oauth/github/callback?code=xxx 로 콜백
-5. code를 GitHub access token으로 교환
-6. access token으로 GitHub 사용자 정보 조회 (login, email)
-7. DB에서 사용자 찾기 → 없으면 자동 가입 (github_{login})
-8. 세션에 로그인 처리 → 홈으로 리다이렉트
-```
-
-### GitHub OAuth App 설정
-
-1. https://github.com/settings/developers → "New OAuth App"
-2. Application name: B5-3 OAuth
-3. Homepage URL: `http://localhost:8000`
-4. Authorization callback URL: `http://localhost:8000/api/oauth/github/callback`
-5. Client ID와 Client Secret을 `.env`에 설정
-
-### 환경변수
-
-| 변수 | 설명 |
-|------|------|
-| `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret |
-| `OAUTH_REDIRECT_URI` | 콜백 URL (기본: `http://localhost:8000/api/oauth/github/callback`) |
-
-### 사용 예시
-
-```bash
-# 1. 브라우저에서 접속
-http://localhost:8000/api/oauth/github/login
-
-# 2. GitHub에서 승인 후 자동으로 콜백 → 로그인 완료
-```
+| `GITHUB_CLIENT_ID` | — | GitHub OAuth App Client ID |
+| `GITHUB_CLIENT_SECRET` | — | GitHub OAuth App Client Secret |
+| `OAUTH_REDIRECT_URI` | — | OAuth 콜백 URL |
 
 ---
 

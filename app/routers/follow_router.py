@@ -20,7 +20,7 @@ def follow_user(
     try:
         service.follow(follower_id=current_user.id, followed_id=user_id)
         return {"message": f"사용자 {user_id}를 팔로우했습니다.", "following": True}
-    except ValueError as e:
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -35,7 +35,7 @@ def unfollow_user(
     try:
         service.unfollow(follower_id=current_user.id, followed_id=user_id)
         return {"message": f"사용자 {user_id}를 언팔로우했습니다.", "following": False}
-    except ValueError as e:
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 

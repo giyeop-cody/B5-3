@@ -6,6 +6,7 @@ from app.repositories.post_repository import PostRepository
 from app.services.post_service import PostService
 from app.schemas import PostCreate, PostUpdate, PostResponse
 from app.auth.dependencies import get_current_user, get_optional_user
+from app.auth.exceptions import NotFoundError, PermissionDeniedError, ValidationError
 from app.models import User
 from typing import List, Optional
 
@@ -39,7 +40,7 @@ async def list_posts(
             return post_service.get_posts_by_author(author_id, viewer_id=viewer_id)
         else:
             return post_service.get_all_posts(skip=skip, limit=limit, viewer_id=viewer_id)
-    except ValueError as e:
+    except (ValueError, Exception) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -53,8 +54,10 @@ async def get_post(
     user_id = current_user.id if current_user else None
     try:
         return post_service.get_post(post_id, user_id=user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=e.message)
 
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
@@ -71,7 +74,7 @@ async def create_post(
             author_id=current_user.id,  # 인증된 사용자 ID 사용
             board_id=post_data.board_id
         )
-    except ValueError as e:
+    except (ValueError, Exception) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -90,10 +93,12 @@ async def update_post(
             title=post_data.title,
             content=post_data.content
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -108,10 +113,12 @@ async def delete_post(
             post_id=post_id,
             user_id=current_user.id
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
 
 @router.post("/{post_id}/publish", response_model=PostResponse)
@@ -126,10 +133,10 @@ async def publish_post(
             post_id=post_id,
             user_id=current_user.id
         )
-    except ValueError as e:
+    except (ValueError, Exception) as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
 
 @router.post("/{post_id}/hide", response_model=PostResponse)
@@ -144,7 +151,7 @@ async def hide_post(
             post_id=post_id,
             user_id=current_user.id
         )
-    except ValueError as e:
+    except (ValueError, Exception) as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=e.message)
