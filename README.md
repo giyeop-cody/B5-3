@@ -1288,6 +1288,52 @@ async def get_current_user(
 
 ---
 
+## 🗄️ PostgreSQL / Supabase 연결 지원 (feature/postgresql-support 브랜치)
+
+> SQLite(개발) 외에 PostgreSQL(운영) 연결을 지원합니다.
+> `feature/postgresql-support` 브랜치에서 확인할 수 있습니다.
+
+### 변경 내용
+
+| 파일 | 변경 |
+|------|------|
+| `app/config.py` | `DB_TYPE` 자동 감지 추가 (sqlite/postgresql) |
+| `app/database.py` | DB 타입별 엔진 설정 분리 (PostgreSQL: connection pool, Supabase空闲会话 대응) |
+| `.env.example` | PostgreSQL / Supabase 연결 문자열 예시 추가 |
+| `requirements.txt` | `psycopg2-binary` 추가 (PostgreSQL 드라이버) |
+
+### SQLite vs PostgreSQL 엔진 설정
+
+| 항목 | SQLite (개발) | PostgreSQL (운영) |
+|------|--------------|-------------------|
+| 연결 | 파일 기반 (`sqlite:///./app.db`) | 서버 기반 (`postgresql://...`) |
+| 스레드 | `check_same_thread=False` | 기본 지원 |
+| Connection Pool | 없음 | `pool_size=10, max_overflow=20` |
+| 연결 유지 | — | `pool_pre_ping=True` (Supabase空闲会話 대응) |
+| 연결 재사용 | — | `pool_recycle=1800` (30분, Supabase 60분 타임아웃 대응) |
+
+### Supabase 연결 방법
+
+1. https://supabase.com에서 프로젝트 생성
+2. Settings → Database → Connection string 복사
+3. `.env`에 설정:
+```bash
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+```
+4. 실행:
+```bash
+pip install psycopg2-binary
+uvicorn app.main:app --reload --port 8000
+```
+
+### 환경변수
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `DATABASE_URL` | `sqlite:///./app.db` | DB 연결 문자열 (sqlite:// 또는 postgresql://) |
+
+---
+
 ## 📄 라이선스
 
 MIT License
