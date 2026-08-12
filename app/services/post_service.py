@@ -8,10 +8,14 @@ class PostService:
     def __init__(self, post_repo: PostRepository):
         self.post_repo = post_repo
 
-    def get_post(self, post_id: int) -> Post:
+    def get_post(self, post_id: int, user_id: int = None) -> Post:
         post = self.post_repo.get_by_id(post_id)
         if not post:
             raise ValueError(f"게시글 #{post_id}를 찾을 수 없습니다")
+        # 비공개 글은 작성자 본인만 조회 가능
+        if post.status == PostStatus.HIDDEN:
+            if user_id is None or post.author_id != user_id:
+                raise ValueError("비공개 게시글입니다")
         return post
 
     def get_all_posts(self, skip: int = 0, limit: int = 100) -> List[Post]:
