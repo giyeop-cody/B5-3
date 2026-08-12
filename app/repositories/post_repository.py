@@ -11,43 +11,47 @@ class PostRepository:
     def get_by_id(self, post_id: int) -> Post:
         return self.db.query(Post).filter(Post.id == post_id).first()
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[Post]:
-        return (
-            self.db.query(Post)
-            .order_by(Post.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+    def get_all(self, skip: int = 0, limit: int = 100, viewer_id: int = None) -> List[Post]:
+        """전체 게시글 조회 (viewer_id가 없거나 작성자가 아니면 HIDDEN 제외)"""
+        query = self.db.query(Post)
+        if viewer_id is None:
+            query = query.filter(Post.status != PostStatus.HIDDEN)
+        query = query.order_by(Post.created_at.desc()).offset(skip).limit(limit)
+        return query.all()
 
-    def get_by_author(self, author_id: int) -> List[Post]:
-        return (
-            self.db.query(Post)
-            .filter(Post.author_id == author_id)
-            .order_by(Post.created_at.desc())
-            .all()
-        )
+    def get_by_author(self, author_id: int, viewer_id: int = None) -> List[Post]:
+        """작성자별 게시글 조회 (viewer_id != author_id면 HIDDEN 제외)"""
+        query = self.db.query(Post).filter(Post.author_id == author_id)
+        if viewer_id is None or viewer_id != author_id:
+            query = query.filter(Post.status != PostStatus.HIDDEN)
+        return query.order_by(Post.created_at.desc()).all()
 
-    def get_by_board(self, board_id: int) -> List[Post]:
-        return (
-            self.db.query(Post)
-            .filter(Post.board_id == board_id)
-            .order_by(Post.created_at.desc())
-            .all()
-        )
-
-    def search(self, query: str) -> List[Post]:
-        """제목 또는 내용으로 검색"""
-        search_pattern = f"%{query}%"
-        return (
-            self.db.query(Post)
-            .filter(
-                (Post.title.ilike(search_pattern))
-                | (Post.content.ilike(search_pattern))
+    def get_by_board(self, board_id: int, viewer_id: int = None) -> List[Post]:
+        """게시판별 게시글 조회 (비로그인 시 HIDDEN 제외)"""
+        query = self.db.query(Post).filter(Post.board_id == board_id)
+        if viewer_id is None:
+            query = query.filter(Post.status != PostStatus.HIDDEN)
+        else:
+            # 로그인 사용자: 타인의 비공개 글만 제외, 본인 글은 표시
+            query = query.filter(
+                (Post.status != PostStatus.HIDDEN) | (Post.author_id == viewer_id)
             )
-            .order_by(Post.created_at.desc())
-            .all()
+        return query.order_by(Post.created_at.desc()).all()
+
+    def search(self, query: str, viewer_id: int = None) -> List[Post]:
+        """제목 또는 내용으로 검색 (비로그인 시 HIDDEN 제외)"""
+        search_pattern = f"%{query}%"
+        q = self.db.query(Post).filter(
+            (Post.title.ilike(search_pattern))
+            | (Post.content.ilike(search_pattern))
         )
+        if viewer_id is None:
+            q = q.filter(Post.status != PostStatus.HIDDEN)
+        else:
+            q = q.filter(
+                (Post.status != PostStatus.HIDDEN) | (Post.author_id == viewer_id)
+            )
+        return q.order_by(Post.created_at.desc()).all()
 
     def create(
         self,
