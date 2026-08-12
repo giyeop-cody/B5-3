@@ -21,7 +21,7 @@
     </h2>
     
     <div class="post-meta mb-3" style="padding: 1rem 0; border-bottom: 1px solid #eee;">
-        작성자: <strong>{{ post.author.username }}</strong> |
+        작성자: <strong><a href="/users/{{ post.author.id }}" style="color: inherit; text-decoration: underline;">{{ post.author.username }}</a></strong> |
         작성일: {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
         {% if post.updated_at != post.created_at %}
             | 수정일: {{ post.updated_at.strftime('%Y-%m-%d %H:%M') }}

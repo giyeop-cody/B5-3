@@ -418,3 +418,152 @@ async def post_hide(
         set_flash(request, "error", str(e))
 
     return RedirectResponse(url=f"/posts/{post_id}", status_code=302)
+
+
+# ===== 회원 간 팔로우 (과제 요구사항: "회원 간 팔로우/연결") =====
+
+@router.get("/users/{user_id}")
+async def user_profile(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """사용자 프로필 — 팔로우 통계 + 팔로우/언팔로우 버튼 (회원 간 연결)"""
+    current_user = get_current_user_from_session(request)
+    flash = get_flash(request)
+
+    user_repo = UserRepository(db)
+    target_user = user_repo.get_by_id(user_id)
+
+    if not target_user:
+        set_flash(request, "error", "존재하지 않는 사용자입니다.")
+        return RedirectResponse(url="/", status_code=302)
+
+    from app.services.follow_service import FollowService
+    follow_service = FollowService(db)
+
+    stats = follow_service.get_follow_stats(user_id)
+    is_following = False
+    if current_user:
+        is_following = follow_service.is_following(current_user.id, user_id)
+
+    post_repo = PostRepository(db)
+    posts = post_repo.get_by_author(user_id) if hasattr(post_repo, 'get_by_author') else []
+
+    return templates.TemplateResponse(request, "user_profile.html", {
+        "user": current_user,
+        "target_user": target_user,
+        "following_count": stats["following_count"],
+        "followers_count": stats["followers_count"],
+        "is_following": is_following,
+        "posts": posts,
+        "flash": flash,
+    })
+
+
+@router.post("/users/{user_id}/follow")
+async def follow_user_view(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """팔로우 (회원 간 연결 생성) — 로그인 필요"""
+    current_user = get_current_user_from_session(request)
+
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    from app.services.follow_service import FollowService
+    follow_service = FollowService(db)
+
+    try:
+        follow_service.follow(follower_id=current_user.id, followed_id=user_id)
+        set_flash(request, "success", "팔로우했습니다.")
+    except ValueError as e:
+        set_flash(request, "error", str(e))
+
+    return RedirectResponse(url=f"/users/{user_id}", status_code=302)
+
+
+@router.post("/users/{user_id}/unfollow")
+async def unfollow_user_view(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """언팔로우 (회원 간 연결 해제) — 로그인 필요"""
+    current_user = get_current_user_from_session(request)
+
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    from app.services.follow_service import FollowService
+    follow_service = FollowService(db)
+
+    try:
+        follow_service.unfollow(follower_id=current_user.id, followed_id=user_id)
+        set_flash(request, "success", "언팔로우했습니다.")
+    except ValueError as e:
+        set_flash(request, "error", str(e))
+
+    return RedirectResponse(url=f"/users/{user_id}", status_code=302)
+
+
+@router.get("/users/{user_id}/following")
+async def following_list(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """내가 팔로우 하는 사용자 목록 (회원 간 연결)"""
+    current_user = get_current_user_from_session(request)
+    flash = get_flash(request)
+
+    user_repo = UserRepository(db)
+    target_user = user_repo.get_by_id(user_id)
+
+    if not target_user:
+        set_flash(request, "error", "존재하지 않는 사용자입니다.")
+        return RedirectResponse(url="/", status_code=302)
+
+    from app.services.follow_service import FollowService
+    follow_service = FollowService(db)
+    following = follow_service.get_following(user_id)
+
+    return templates.TemplateResponse(request, "follow_list.html", {
+        "user": current_user,
+        "target_user": target_user,
+        "users": following,
+        "list_type": "following",
+        "flash": flash,
+    })
+
+
+@router.get("/users/{user_id}/followers")
+async def followers_list(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """나를 팔로우 하는 사용자 목록 (회원 간 연결)"""
+    current_user = get_current_user_from_session(request)
+    flash = get_flash(request)
+
+    user_repo = UserRepository(db)
+    target_user = user_repo.get_by_id(user_id)
+
+    if not target_user:
+        set_flash(request, "error", "존재하지 않는 사용자입니다.")
+        return RedirectResponse(url="/", status_code=302)
+
+    from app.services.follow_service import FollowService
+    follow_service = FollowService(db)
+    followers = follow_service.get_followers(user_id)
+
+    return templates.TemplateResponse(request, "follow_list.html", {
+        "user": current_user,
+        "target_user": target_user,
+        "users": followers,
+        "list_type": "followers",
+        "flash": flash,
+    })

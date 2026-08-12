@@ -2,10 +2,11 @@
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from app.database import engine, Base
-from app.routers import board_router, post_router, view_router
+from app.routers import board_router, post_router, view_router, follow_router
 from app.auth import router as auth_router
 from app.config import SECRET_KEY, SESSION_MAX_AGE
 import app.models
+from app.startup import init_data
 
 # 데이터베이스 테이블 생성
 Base.metadata.create_all(bind=engine)
@@ -28,6 +29,13 @@ app.include_router(auth_router.router)
 app.include_router(board_router.router)
 app.include_router(post_router.router)
 app.include_router(view_router.router)  # 화면 라우터
+app.include_router(follow_router.router)  # 팔로우 API (회원 간 연결)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 DB 초기화"""
+    init_data()  # 화면 라우터
 
 
 @app.get("/api")

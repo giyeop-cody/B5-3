@@ -1,12 +1,13 @@
 # FastAPI 게시판 서비스
 
-FastAPI로 만든 인증/인가 기반 게시판 웹 서비스입니다.
+FastAPI로 만든 인증/인가 + 회원 간 팔로우 기반 게시판 웹 서비스입니다.
 
 ## 🎯 프로젝트 개요
 
 - **인증**: 세션 기반 로그인/로그아웃
 - **인가**: 로그인 사용자만 게시글 작성/수정/삭제 가능
-- **연관관계**: User ↔ Post ↔ Board (1:N 관계)
+- **회원 간 팔로우**: 사용자가 다른 사용자를 팔로우/언팔로우 (N:M 관계)
+- **연관관계**: User ↔ Post ↔ Board (1:N), User ↔ User (N:M 팔로우)
 - **상태 변경**: 게시글 상태 관리 (초안 → 공개 → 비공개)
 
 ## 🛠️ 개발 환경
@@ -74,8 +75,10 @@ uvicorn app.main:app --reload --port 8000
 
 ## 🔑 테스트 계정
 
-- **ID**: `testuser`
-- **PW**: `test1234`
+| 계정 | 비밀번호 | 용도 |
+|------|---------|------|
+| `testuser` | `test1234` | 기본 테스트 계정 |
+| `demo_user` | `demo1234` | 팔로우 데모용 (testuser가 이 계정을 팔로우) |
 
 ## 📋 공개/보호 경로 정책
 
@@ -94,6 +97,11 @@ uvicorn app.main:app --reload --port 8000
 | 보호 | `/posts/{id}/publish` | 게시글 공개 (로그인 필수) |
 | 보호 | `/posts/{id}/hide` | 게시글 비공개 (로그인 필수) |
 | 보호 | `/my-posts` | 내 글 목록 (로그인 필수) |
+| 공개 | `/users/{id}` | 사용자 프로필 (팔로우 통계 + 팔로우/언팔로우 버튼) |
+| 보호 | `/users/{id}/follow` | 팔로우 (로그인 필수) |
+| 보호 | `/users/{id}/unfollow` | 언팔로우 (로그인 필수) |
+| 공개 | `/users/{id}/following` | 팔로잉 목록 |
+| 공개 | `/users/{id}/followers` | 팔로워 목록 |
 | 보호 | `/logout` | 로그아웃 (로그인 필수) |
 
 ### API 경로
@@ -112,6 +120,10 @@ uvicorn app.main:app --reload --port 8000
 | 공개 | `POST /api/auth/login` | 로그인 |
 | 공개 | `POST /api/auth/logout` | 로그아웃 |
 | 공개 | `POST /api/auth/register` | 회원가입 |
+| 보호 | `POST /api/users/{id}/follow` | 팔로우 (회원 간 연결) |
+| 보호 | `DELETE /api/users/{id}/follow` | 언팔로우 |
+| 공개 | `GET /api/users/{id}/following` | 팔로잉 목록 |
+| 공개 | `GET /api/users/{id}/followers` | 팔로워 목록 |
 
 ## 🚀 주요 기능
 
@@ -134,6 +146,13 @@ uvicorn app.main:app --reload --port 8000
 - 사용자별 작성한 게시글 목록
 - 게시판별 게시글 필터링
 - 양방향 관계 (User ↔ Post ↔ Board)
+
+### 회원 간 팔로우 (과제 핵심 요구)
+- 사용자가 다른 사용자를 팔로우/언팔로우
+- 팔로우 시 자기 자신 팔로우 금지, 중복 팔로우 방지 (UniqueConstraint)
+- 사용자 프로필 페이지에서 팔로잉/팔로워 수 및 목록 확인
+- Follow 조인 테이블로 User-User 간 N:M 관계 모델링
+- 사용자 탈퇴 시 팔로우 관계 자동 삭제 (cascade)
 
 ---
 
@@ -233,6 +252,11 @@ User (1) ──────< (N) Post (N) >────── (1) Board
                       ├─ board_id (FK)
                       ├─ created_at
                       └─ updated_at
+
+User (N) ──── Follow ──── (N) User  (회원 간 팔로우)
+ │                            │
+ ├─ follower_id (FK)          ├─ followed_id (FK)
+ └─ created_at                └─ UniqueConstraint(follower_id, followed_id)
 ```
 
 ### 관계 설계 의도 및 삭제 정책 (#9)

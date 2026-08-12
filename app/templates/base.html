@@ -302,6 +302,7 @@
                        {% endif %}
                     #}
                     <a href="/my-posts">내 글</a>
+                    <a href="/users/{{ user.id }}">내 프로필</a>
                     <span>{{ user.username }}님</span>
                     <form action="/logout" method="post" style="display: inline;">
                         <button type="submit" class="btn-logout" aria-label="로그아웃">로그아웃</button>
