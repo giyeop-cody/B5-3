@@ -1,6 +1,7 @@
 """FastAPI 게시판 서비스 - 메인 앱"""
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import engine, Base
 from app.routers import board_router, post_router, view_router, follow_router
 from app.auth import router as auth_router
@@ -16,6 +17,25 @@ app = FastAPI(
     description="인증/인가 기반 게시판 웹 서비스",
     version="0.3.0"
 )
+
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    """모든 HTML 응답에 캐시 방지 헤더 추가
+
+    문제: 로그아웃 후 뒤로 가기 시 브라우저가 캐시된 HTML을 표시하여
+    비공개 글, 수정/삭제 버튼, 마이페이지 등이 노출되는 버그 방지.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+
+# 미들웨어 (순서 중요: NoCacheMiddleware가 가장 바깥)
+app.add_middleware(NoCacheMiddleware)
 
 # 세션 미들웨어 추가 (인증에 필요)
 app.add_middleware(
