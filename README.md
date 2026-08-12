@@ -1019,7 +1019,7 @@ async def get_current_user(
 - `logout_user()` 28줄 → 세션에서 user_id 삭제
 - `get_current_user_from_session()` 9줄 → 세션에서 user_id 읽어 User 객체 반환
 
-**演示 순서**: `app/auth/router.py` POST /login → `auth/service.py` authenticate(bcrypt 검증) → `session.py` login_user → 쿠키 발급
+**시연 순서**: `app/auth/router.py` POST /login → `auth/service.py` authenticate(bcrypt 검증) → `session.py` login_user → 쿠키 발급
 
 ---
 
@@ -1033,7 +1033,7 @@ async def get_current_user(
 - `get_current_user()` 8줄 → 인증 안 되면 401 HTTPException
 - `app/routers/view_router.py` 138줄 `my_posts()` → `if not user: return RedirectResponse(url="/login?next=/my-posts")`
 
-**演示 순서**: 비로그인 상태로 `/posts/new` 직접 접속 → 로그인 페이지로 리다이렉트 확인
+**시연 순서**: 비로그인 상태로 `/posts/new` 직접 접속 → 로그인 페이지로 리다이렉트 확인
 
 ---
 
@@ -1059,7 +1059,7 @@ async def get_current_user(
 - 296줄 근처 `{% if user %}` 블록 → "내 글", "내 프로필", "{user.username}님", "로그아웃" 버튼
 - `{% else %}` 블록 → "로그인" 버튼만
 
-**演示 순서**: 로그인 전 홈 화면 → 로그인 후 홈 화면 → 네비게이션 바 변화 확인
+**시연 순서**: 로그인 전 홈 화면 → 로그인 후 홈 화면 → 네비게이션 바 변화 확인
 
 ---
 
@@ -1074,7 +1074,7 @@ async def get_current_user(
 - `app/models/post.py` 60줄 → `author = relationship("User", back_populates="posts")`
 - `app/models/follow.py` 17줄 → `class Follow` (follower_id, followed_id로 N:M 구현)
 
-**演示 순서**: 게시글 상세 페이지 → `post.author.username`이 화면에 표시되는 것 확인 → 작성자 이름 클릭 → 프로필 페이지로 이동
+**시연 순서**: 게시글 상세 페이지 → `post.author.username`이 화면에 표시되는 것 확인 → 작성자 이름 클릭 → 프로필 페이지로 이동
 
 ---
 
@@ -1088,7 +1088,7 @@ async def get_current_user(
 - `app/services/post_service.py` 86줄 `publish_post()` → 이미 공개된 글이면 `ValueError`
 - `app/services/post_service.py` 98줄 `hide_post()` → 이미 비공개면 `ValueError`
 
-**演示 순서**: 글 작성(초안) → "공개하기" 버튼 → "비공개로 변경" 버튼 → 상태 배지 변화 확인
+**시연 순서**: 글 작성(초안) → "공개하기" 버튼 → "비공개로 변경" 버튼 → 상태 배지 변화 확인
 
 ---
 
@@ -1119,7 +1119,7 @@ async def get_current_user(
 - `app/models/post.py` — 데이터 구조 정의
 - `app/auth/` — 인증 모듈 (별도 분리)
 
-**演示 순서**: 하나의 요청(예: 게시글 작성)이 4계층을 통과하는 흐름 설명: Router → Service → Repository → Model
+**시연 순서**: 하나의 요청(예: 게시글 작성)이 4계층을 통과하는 흐름 설명: Router → Service → Repository → Model
 
 ---
 
@@ -1228,7 +1228,7 @@ async def get_current_user(
 - `app/auth/dependencies.py` 12줄 → `HTTPException(status_code=401, detail="로그인이 필요합니다")`
 - `app/routers/view_router.py` 95줄 → 로그인 실패 시 "아이디 또는 비밀번호가 올바르지 않습니다"
 
-**演示 순서**: 로그인 실패(틀린 비밀번호) → 에러 메시지 확인 → 보호 페이지 직접 접속 → 로그인 페이지로 리다이렉트
+**시연 순서**: 로그인 실패(틀린 비밀번호) → 에러 메시지 확인 → 보호 페이지 직접 접속 → 로그인 페이지로 리다이렉트
 
 ---
 
