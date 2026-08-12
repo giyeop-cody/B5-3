@@ -5,7 +5,7 @@ from app.database import get_db
 from app.repositories.post_repository import PostRepository
 from app.services.post_service import PostService
 from app.schemas import PostCreate, PostUpdate, PostResponse
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_optional_user
 from app.models import User
 from typing import List, Optional
 
@@ -25,18 +25,20 @@ async def list_posts(
     q: Optional[str] = Query(None, description="검색어"),
     skip: int = Query(0, ge=0, description="건너뛸 개수"),
     limit: int = Query(100, ge=1, le=1000, description="가져올 개수"),
-    post_service: PostService = Depends(get_post_service)
+    post_service: PostService = Depends(get_post_service),
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
-    """게시글 목록 조회 (필터링/검색 지원)"""
+    """게시글 목록 조회 (필터링/검색 지원) — 비공개 글은 작성자 본인만"""
+    viewer_id = current_user.id if current_user else None
     try:
         if q:
-            return post_service.search_posts(q)
+            return post_service.search_posts(q, viewer_id=viewer_id)
         elif board_id:
-            return post_service.get_posts_by_board(board_id)
+            return post_service.get_posts_by_board(board_id, viewer_id=viewer_id)
         elif author_id:
-            return post_service.get_posts_by_author(author_id)
+            return post_service.get_posts_by_author(author_id, viewer_id=viewer_id)
         else:
-            return post_service.get_all_posts(skip=skip, limit=limit)
+            return post_service.get_all_posts(skip=skip, limit=limit, viewer_id=viewer_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -45,9 +47,9 @@ async def list_posts(
 async def get_post(
     post_id: int,
     post_service: PostService = Depends(get_post_service),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
-    """게시글 상세 조회"""
+    """게시글 상세 조회 — 공개 글은 누구나, 비공개 글은 작성자만"""
     user_id = current_user.id if current_user else None
     try:
         return post_service.get_post(post_id, user_id=user_id)
