@@ -6,6 +6,7 @@ from app.database import engine, Base
 from app.routers import board_router, post_router, view_router, follow_router
 from app.auth import router as auth_router
 from app.auth.jwt_router import router as jwt_router
+from app.auth.oauth_router import router as oauth_router
 from app.config import SECRET_KEY, SESSION_MAX_AGE
 import app.models
 from app.startup import init_data
@@ -52,6 +53,7 @@ app.include_router(post_router.router)
 app.include_router(view_router.router)  # 화면 라우터
 app.include_router(follow_router.router)  # 팔로우 API (회원 간 연결)
 app.include_router(jwt_router)  # 보너스: JWT 인증 API
+app.include_router(oauth_router)  # 보너스: OAuth2 소셜 로그인
 
 
 @app.on_event("startup")

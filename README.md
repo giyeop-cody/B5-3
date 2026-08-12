@@ -1354,6 +1354,64 @@ curl -X POST http://localhost:8000/api/jwt/logout \
 
 ---
 
+## 🎁 보너스: OAuth2 소셜 로그인 (GitHub)
+
+> 과제에서 명시한 보너스: "OAuth2 소셜 로그인은 보너스 과제에서 선택적으로 다룬다."
+> GitHub OAuth2 소셜 로그인을 구현했습니다.
+
+### 추가 파일
+
+| 파일 | 설명 |
+|------|------|
+| `app/auth/oauth_router.py` | GitHub OAuth2 로그인 (리다이렉트 → 콜백 → 자동 가입) |
+
+### OAuth2 API 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/oauth/github/login` | GitHub 로그인 페이지로 리다이렉트 |
+| GET | `/api/oauth/github/callback` | GitHub 콜백 → 토큰 교환 → 사용자 정보 조회 → 자동 가입/로그인 |
+
+### 동작 흐름
+
+```
+1. 사용자가 /api/oauth/github/login 접속
+2. GitHub 로그인 페이지로 리다이렉트 (client_id, scope=user:email)
+3. 사용자가 GitHub에서 "Authorize" 클릭
+4. GitHub이 /api/oauth/github/callback?code=xxx 로 콜백
+5. code를 GitHub access token으로 교환
+6. access token으로 GitHub 사용자 정보 조회 (login, email)
+7. DB에서 사용자 찾기 → 없으면 자동 가입 (github_{login})
+8. 세션에 로그인 처리 → 홈으로 리다이렉트
+```
+
+### GitHub OAuth App 설정
+
+1. https://github.com/settings/developers → "New OAuth App"
+2. Application name: B5-3 OAuth
+3. Homepage URL: `http://localhost:8000`
+4. Authorization callback URL: `http://localhost:8000/api/oauth/github/callback`
+5. Client ID와 Client Secret을 `.env`에 설정
+
+### 환경변수
+
+| 변수 | 설명 |
+|------|------|
+| `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret |
+| `OAUTH_REDIRECT_URI` | 콜백 URL (기본: `http://localhost:8000/api/oauth/github/callback`) |
+
+### 사용 예시
+
+```bash
+# 1. 브라우저에서 접속
+http://localhost:8000/api/oauth/github/login
+
+# 2. GitHub에서 승인 후 자동으로 콜백 → 로그인 완료
+```
+
+---
+
 ## 📄 라이선스
 
 MIT License
