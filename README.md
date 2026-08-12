@@ -1288,6 +1288,72 @@ async def get_current_user(
 
 ---
 
+## 🎁 보너스: JWT 인증 구현 (bonus/jwt-auth 브랜치)
+
+> 세션 기반 인증을 JWT 기반으로 전환한 보너스 구현입니다.
+> `bonus/jwt-auth` 브랜치에서 확인할 수 있습니다.
+
+### 추가 파일
+
+| 파일 | 설명 |
+|------|------|
+| `app/auth/jwt_manager.py` | JWT 토큰 생성/검증/무효화 (access + refresh) |
+| `app/auth/jwt_dependencies.py` | JWT 인증 Depends (Bearer 토큰 추출) |
+| `app/auth/jwt_router.py` | JWT API (login/refresh/logout/me) |
+
+### JWT API 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/api/jwt/login` | 로그인 → access token + refresh token 발급 |
+| POST | `/api/jwt/refresh` | refresh token으로 access token 재발급 |
+| POST | `/api/jwt/logout` | 토큰 무효화 (블랙리스트) |
+| GET | `/api/jwt/me` | 현재 사용자 정보 (JWT 인증 필수) |
+
+### 세션 vs JWT 비교
+
+| 항목 | 세션 (master) | JWT (bonus) |
+|------|--------------|-------------|
+| 상태 | 서버에 상태 저장 | 상태 없음 (stateless) |
+| 저장 | 세션 쿠키 | Authorization: Bearer 헤더 |
+| 만료 | SESSION_MAX_AGE (24시간) | access 30분 / refresh 7일 |
+| 로그아웃 | 세션 삭제 | 블랙리스트 (토큰 무효화) |
+| 확장성 | 단일 서버 | 분산 서버 (토큰 자체 검증) |
+| 즉시 로그아웃 | ✅ (세션 삭제) | ⚠️ 블랙리스트 필요 |
+
+### 사용 예시
+
+```bash
+# 로그인
+curl -X POST http://localhost:8000/api/jwt/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"test1234"}'
+# → {"access_token":"eyJ...","refresh_token":"eyJ...","token_type":"bearer","expires_in":1800}
+
+# 인증 필요 API 호출
+curl http://localhost:8000/api/jwt/me \
+  -H "Authorization: Bearer eyJ..."
+
+# 토큰 재발급
+curl -X POST http://localhost:8000/api/jwt/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"eyJ..."}'
+
+# 로그아웃 (토큰 무효화)
+curl -X POST http://localhost:8000/api/jwt/logout \
+  -H "Authorization: Bearer eyJ..."
+```
+
+### 환경변수 (JWT 관련)
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `JWT_ALGORITHM` | HS256 | JWT 서명 알고리즘 |
+| `JWT_ACCESS_EXPIRE` | 30 | access token 만료 (분) |
+| `JWT_REFRESH_EXPIRE` | 7 | refresh token 만료 (일) |
+
+---
+
 ## 📄 라이선스
 
 MIT License
