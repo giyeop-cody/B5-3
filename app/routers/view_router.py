@@ -263,12 +263,16 @@ async def post_detail(
     post_service = PostService(PostRepository(db))
 
     try:
-        post = post_service.get_post(post_id)
+        post = post_service.get_post(post_id, user_id=user.id if user else None)
 
-        return templates.TemplateResponse(
+        response = templates.TemplateResponse(
             request, "posts/detail.html",
             {"user": user, "post": post, "flash": flash}
         )
+        # 브라우저 캐시 방지 (뒤로 가기 시 비공개 글/수정버튼 노출 방지)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        return response
     except ValueError:
         set_flash(request, "error", f"게시글 #{post_id}를 찾을 수 없습니다.")
         return RedirectResponse(url="/boards", status_code=302)
@@ -292,16 +296,19 @@ async def post_edit_page(
     post_service = PostService(PostRepository(db))
 
     try:
-        post = post_service.get_post(post_id)
+        post = post_service.get_post(post_id, user_id=user.id)
 
         if post.author_id != user.id:
             set_flash(request, "error", "자신의 게시글만 수정할 수 있습니다.")
             return RedirectResponse(url=f"/posts/{post_id}", status_code=302)
 
-        return templates.TemplateResponse(
+        response = templates.TemplateResponse(
             request, "posts/edit.html",
             {"user": user, "post": post, "flash": flash}
         )
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        return response
     except ValueError:
         set_flash(request, "error", f"게시글 #{post_id}를 찾을 수 없습니다.")
         return RedirectResponse(url="/boards", status_code=302)
@@ -335,7 +342,7 @@ async def post_edit_submit(
         set_flash(request, "success", "게시글이 수정되었습니다.")
         return RedirectResponse(url=f"/posts/{post.id}", status_code=302)
     except (ValueError, PermissionError) as e:
-        post = post_service.get_post(post_id)
+        post = post_service.get_post(post_id, user_id=user.id)
         return templates.TemplateResponse(
             request, "posts/edit.html",
             {"user": user, "post": post, "error": str(e)}
@@ -357,7 +364,7 @@ async def post_delete(
     post_service = PostService(PostRepository(db))
 
     try:
-        post = post_service.get_post(post_id)
+        post = post_service.get_post(post_id, user_id=user.id)
         board_id = post.board_id
         post_service.delete_post(post_id=post_id, user_id=user.id)
         set_flash(request, "success", "게시글이 삭제되었습니다.")
