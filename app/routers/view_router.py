@@ -146,7 +146,7 @@ async def my_posts(request: Request, db: Session = Depends(get_db)):
 
     flash = get_flash(request)
     post_service = PostService(PostRepository(db))
-    posts = post_service.get_posts_by_author(user.id)
+    posts = post_service.get_posts_by_author(user.id, viewer_id=user.id)
 
     return templates.TemplateResponse(
         request, "my_posts.html",
@@ -168,7 +168,7 @@ async def board_detail(
 
     try:
         board = board_service.get_board(board_id)
-        posts = post_service.get_posts_by_board(board_id)
+        posts = post_service.get_posts_by_board(board_id, viewer_id=user.id if user else None)
 
         return templates.TemplateResponse(
             request, "boards/detail.html",
@@ -448,7 +448,8 @@ async def user_profile(
         is_following = follow_service.is_following(current_user.id, user_id)
 
     post_repo = PostRepository(db)
-    posts = post_repo.get_by_author(user_id) if hasattr(post_repo, 'get_by_author') else []
+    viewer_id = current_user.id if current_user else None
+    posts = post_repo.get_by_author(user_id, viewer_id=viewer_id)
 
     return templates.TemplateResponse(request, "user_profile.html", {
         "user": current_user,
